@@ -1,4 +1,4 @@
 /target
-/video
-/mist
-/logs
+/.video
+/.mist
+/.logs

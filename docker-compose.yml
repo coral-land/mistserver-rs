@@ -2,10 +2,10 @@ services:
   mistserver:
     image: ddvtech/mistserver
     container_name: mistserver
-    command: ["MistController"] # This disables authentication
+    command: ["MistController"]
     volumes:
-      - ./mist/config.json:/config.json
-      - ./video:/video
+      - ./.mist/config.json:/config.json
+      - ./.video:/video
     ports:
       - "8080:8080"
       - "4242:4242"

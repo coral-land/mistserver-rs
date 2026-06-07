@@ -1,5 +1,14 @@
+mod auth;
+mod client;
+mod config;
 mod error;
-pub use error::*;
+mod http;
 
-#[derive(Debug)]
-pub struct MistClient {}
+mod api;
+pub mod models;
+
+use config::*;
+
+pub use auth::*;
+pub use client::*;
+pub use error::*;
