@@ -18,12 +18,14 @@ pub struct MistAuthController {
 /// witch is a string and a challenge also a string.
 #[derive(Debug, Clone)]
 pub struct AuthResponse {
-    pub status: Option<String>,
+    pub status: Option<AuthStatus>,
     pub challenge: Option<String>,
 }
 
 /// Mist Server will return one of the statuses back.
 /// current login status. Either "OK", "CHALL", "NOACC" or "ACC_MADE".
+
+#[derive(Debug, Clone)]
 pub enum AuthStatus {
     Ok,
     NoAccount,
