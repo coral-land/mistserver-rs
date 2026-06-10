@@ -20,3 +20,4 @@ _*
 target/
 # !Cargo.lock # Commented by default
 !.cargo/
+!.docs
