@@ -87,7 +87,7 @@ impl MistAuthController {
     /// async fn main()-> Result<()> {
     ///     let client = Arc::new(build_http_client(Duration::from_secs(10))?);
     ///     let config = Arc::new(Config {
-    ///         mist_url: "http://localhost:8080".into(),
+    ///         mist_api_url: "http://localhost:8080".into(),
     ///         auth: None,
     ///     });
     ///
@@ -127,7 +127,7 @@ impl MistAuthController {
     /// # Example
     /// ```rust
     /// use mistserver_rs::{
-    ///     AuthResult, MistAuthController, Result, config::Config, http::client::build_http_client,
+    ///     AuthResult, MistAuthController, Result, Config, http::client::build_http_client,
     /// };
     /// use std::{sync::Arc, time::Duration};
     ///
@@ -135,7 +135,7 @@ impl MistAuthController {
     /// async fn main() -> Result<()> {
     ///     let client = Arc::new(build_http_client(Duration::from_secs(10))?);
     ///     let config = Arc::new(Config {
-    ///         mist_url: "http://localhost:1324".into(),
+    ///         mist_api_url: "http://localhost:1324".into(),
     ///         auth: Some(("username".into(), "testpass".into())),
     ///     });
     ///

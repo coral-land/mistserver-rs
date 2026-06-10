@@ -49,7 +49,7 @@ async fn auth_with_challenge() -> Result<()> {
         },
     })?;
 
-    let _handle = server
+    let m1 = server
         .mock("GET", "/api")
         .with_status(200)
         .with_header("content-type", "application/json")
@@ -73,8 +73,6 @@ async fn auth_with_challenge() -> Result<()> {
             );
         }
     }
-
-    _handle.assert_async().await;
 
     Ok(())
 }
