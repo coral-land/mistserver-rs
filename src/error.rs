@@ -13,4 +13,7 @@ pub enum MistError {
 
     #[error("MistServer Auth Error: {0}")]
     Auth(String),
+
+    #[error("URL Parse Error: {0}")]
+    UrlParseError(#[from] url::ParseError),
 }

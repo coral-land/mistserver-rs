@@ -1,13 +1,19 @@
 use std::sync::Arc;
 
-use crate::{Config, Result};
+use crate::{
+    Config, MistError, Result,
+    http::commands::{AuthorizeCommand, Credentials},
+};
+
 use reqwest::Client;
+use serde::Deserialize;
+use url::Url;
 
 /// Holds everything needed for authorization.
 /// client: Reqwest Client
 /// config: MistRs Config object
 pub struct MistAuthController {
-    client: Client,
+    client: Arc<Client>,
     config: Arc<Config>,
 }
 
@@ -16,33 +22,49 @@ pub struct MistAuthController {
 /// authorization requests.
 /// If everything goes as expected you will get the status
 /// witch is a string and a challenge also a string.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub struct AuthResponse {
     pub status: Option<AuthStatus>,
     pub challenge: Option<String>,
 }
 
+impl AuthResponse {
+    pub fn needs_challenge(&self) -> bool {
+        if let Some(status) = self.status.clone() {
+            return status == AuthStatus::Chall;
+        }
+        false
+    }
+}
+
+/// To parse the response from the mist api server.
+#[derive(Debug, Clone, Deserialize)]
+pub struct AuthResponseWrapper {
+    pub authorize: AuthResponse,
+}
+
 /// Mist Server will return one of the statuses back.
 /// current login status. Either "OK", "CHALL", "NOACC" or "ACC_MADE".
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum AuthStatus {
     Ok,
-    NoAccount,
-    AccountMade,
-    Challenge,
+    Chall,
+    NoAcc,
+    AccMade,
 }
 
 /// Auth Result when MistAUthController::authorize() is called
 /// If Not required, you should bypass authorization process.
 /// If required, then do the process :).
+#[derive(Debug, Clone, PartialEq)]
 pub enum AuthResult {
     NotRequired,
     Required(AuthResponse),
 }
 
 impl MistAuthController {
-    pub fn new(client: Client, config: Arc<Config>) -> Self {
+    pub fn new(client: Arc<Client>, config: Arc<Config>) -> Self {
         Self { client, config }
     }
 
@@ -76,11 +98,64 @@ impl MistAuthController {
             return Ok(AuthResult::NotRequired);
         }
 
-        let base_url = self.config.mist_url.clone();
-        let api_url = format!("{base_url}/api");
+        let (username, password) = self.config.auth.as_ref().unwrap();
 
-        let response = self.client.get(api_url).send().await?;
+        let auth_command = AuthorizeCommand {
+            authorize: Credentials {
+                username: username.clone(),
+                password: password.clone(),
+            },
+        };
 
-        todo!()
+        let auth_response = self.send_auth_request(auth_command).await?;
+
+        match auth_response {
+            AuthResponse {
+                status: Some(AuthStatus::Chall),
+                challenge,
+            } => {
+                if let Some(challenge) = challenge {
+                    let auth_hash = self.compute_auth_hash(&password, &challenge);
+                    let auth_command = AuthorizeCommand {
+                        authorize: Credentials {
+                            username: username.clone(),
+                            password: auth_hash,
+                        },
+                    };
+                    let auth_response = self.send_auth_request(auth_command).await?;
+                    return Ok(AuthResult::Required(auth_response));
+                } else {
+                    return Err(MistError::Auth(
+                        "Api Responded with challenge status but no challenge returned".into(),
+                    ));
+                }
+            }
+
+            _ => Ok(AuthResult::Required(auth_response)),
+        }
+    }
+
+    /// Sends auth request to the mist api server and returns the auth response.
+    /// This is a helper function for the authorize function.
+    async fn send_auth_request(&self, auth_command: AuthorizeCommand) -> Result<AuthResponse> {
+        let mut request_url = Url::parse(&self.config.mist_url)?;
+        let json_auth_command = serde_json::to_string(&auth_command)?;
+        request_url
+            .query_pairs_mut()
+            .append_pair("command", &json_auth_command);
+
+        let response = self.client.get(request_url).send().await?;
+        let auth_response: AuthResponseWrapper = response.json().await?;
+
+        Ok(auth_response.authorize)
+    }
+
+    /// Computes the auth hash using the password and the challenge.
+    /// This is based on the mist server's authentication mechanism.
+    fn compute_auth_hash(&self, password: &str, challenge: &str) -> String {
+        let password_hash_hex = format!("{:x}", md5::compute(password.as_bytes()));
+        let combined = format!("{}{}", password_hash_hex, challenge);
+
+        format!("{:x}", md5::compute(combined.as_bytes()))
     }
 }
