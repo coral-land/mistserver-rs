@@ -9,8 +9,7 @@ pub mod http;
 pub mod models;
 pub mod utils;
 
-use config::*;
-
 pub use auth::*;
 pub use client::*;
 pub use error::*;
+pub use models::*;

@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use crate::{
-    Config, MistError, Result,
+    Config, Result,
     http::commands::{AuthorizeCommand, Credentials},
 };
 
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 /// Holds everything needed for authorization.
@@ -22,7 +22,7 @@ pub struct MistAuthController {
 /// authorization requests.
 /// If everything goes as expected you will get the status
 /// witch is a string and a challenge also a string.
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct AuthResponse {
     pub status: Option<AuthStatus>,
     pub challenge: Option<String>,
@@ -38,14 +38,14 @@ impl AuthResponse {
 }
 
 /// To parse the response from the mist api server.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AuthResponseWrapper {
     pub authorize: AuthResponse,
 }
 
 /// Mist Server will return one of the statuses back.
 /// current login status. Either "OK", "CHALL", "NOACC" or "ACC_MADE".
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum AuthStatus {
     Ok,
@@ -118,41 +118,67 @@ impl MistAuthController {
         };
 
         let auth_response = self.send_auth_request(auth_command).await?;
+        Ok(AuthResult::Required(auth_response))
+    }
 
-        match auth_response {
-            AuthResponse {
-                status: Some(AuthStatus::Chall),
-                challenge,
-            } => {
-                if let Some(challenge) = challenge {
-                    let auth_hash = self.compute_auth_hash(&password, &challenge);
-                    let auth_command = AuthorizeCommand {
-                        authorize: Credentials {
-                            username: username.clone(),
-                            password: auth_hash,
-                        },
-                    };
-                    let auth_response = self.send_auth_request(auth_command).await?;
-                    return Ok(AuthResult::Required(auth_response));
-                } else {
-                    return Err(MistError::Auth(
-                        "Api Responded with challenge status but no challenge returned".into(),
-                    ));
-                }
-            }
+    /// If Auth Response's status is "CHALL" then you should call this function
+    /// with the challenge string to get the final auth result.
+    ///
+    /// # Example
+    /// ```rust
+    /// use mistserver_rs::{
+    ///     AuthResult, MistAuthController, Result, config::Config, http::client::build_http_client,
+    /// };
+    /// use std::{sync::Arc, time::Duration};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<()> {
+    ///     let client = Arc::new(build_http_client(Duration::from_secs(10))?);
+    ///     let config = Arc::new(Config {
+    ///         mist_url: "http://localhost:1324".into(),
+    ///         auth: Some(("username".into(), "testpass".into())),
+    ///     });
+    ///
+    ///     let mac = MistAuthController::new(client.clone(), config.clone());
+    ///     let auth_result: AuthResult = mac.authorize().await.unwrap();
+    ///     match auth_result {
+    ///         AuthResult::NotRequired => {}
+    ///         AuthResult::Required(auth_response) => {
+    ///             if auth_response.needs_challenge() {
+    ///                 let final_auth_result = mac.authorize_with_challenge(auth_response.challenge.unwrap()).await.unwrap();
+    ///                 // Handle final auth result
+    ///             }
+    ///         }
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn authorize_with_challenge(&self, challenge: String) -> Result<AuthResult> {
+        let (username, password) = self.config.auth.as_ref().unwrap();
 
-            _ => Ok(AuthResult::Required(auth_response)),
-        }
+        let auth_hash = self.compute_auth_hash(password, &challenge);
+        let auth_command = AuthorizeCommand {
+            authorize: Credentials {
+                username: username.clone(),
+                password: auth_hash,
+            },
+        };
+
+        let auth_response = self.send_auth_request(auth_command).await?;
+        Ok(AuthResult::Required(auth_response))
     }
 
     /// Sends auth request to the mist api server and returns the auth response.
     /// This is a helper function for the authorize function.
     async fn send_auth_request(&self, auth_command: AuthorizeCommand) -> Result<AuthResponse> {
-        let mut request_url = Url::parse(&self.config.mist_url)?;
+        let mut request_url = Url::parse(&self.config.mist_api_url)?;
+
         let json_auth_command = serde_json::to_string(&auth_command)?;
         request_url
             .query_pairs_mut()
             .append_pair("command", &json_auth_command);
+
+        println!("Sending auth request to: {}", request_url);
 
         let response = self.client.get(request_url).send().await?;
         let auth_response: AuthResponseWrapper = response.json().await?;

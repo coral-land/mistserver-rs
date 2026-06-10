@@ -1,3 +1,3 @@
-pub mod credentials;
+mod config_model;
 
-pub use credentials::*;
+pub use config_model::*;
