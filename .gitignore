@@ -6,6 +6,7 @@
 # -- Base
 .*
 !.gitignore
+!.github
 
 _*
 # '_' in src dir, ok.
