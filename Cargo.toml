@@ -16,3 +16,13 @@ url = "2.5.8"
 
 [lib]
 doctest = false
+
+
+[features]
+testing = []
+
+# --- Development phase only 
+
+[lints.rust]
+unused_variables = "allow"
+dead_code = "allow"

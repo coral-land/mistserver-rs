@@ -1,15 +1,13 @@
-mod auth;
-mod client;
-mod error;
+pub(crate) mod api;
 
-mod api;
+pub(crate) mod auth;
+pub(crate) mod client;
+pub(crate) mod error;
+pub(crate) mod models;
 
-pub mod config;
-pub mod http;
-pub mod models;
-pub mod utils;
+pub(crate) mod commands;
+pub(crate) mod utils;
+pub(crate) use error::*;
 
-pub use auth::*;
-pub use client::*;
-pub use error::*;
-pub use models::*;
+pub use client::{MistClient, MistClientBuilder};
+pub use error::{MistError, Result};
