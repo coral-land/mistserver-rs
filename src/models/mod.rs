@@ -1,3 +1,3 @@
-mod config_model;
+mod config;
 
-pub use config_model::*;
+pub use config::*;

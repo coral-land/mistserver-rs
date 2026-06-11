@@ -1,9 +1,10 @@
+use crate::{
+    commands::authorize::{AuthCredentials, AuthorizeCommand},
+    models::Config,
+};
 use std::sync::Arc;
 
-use crate::{
-    Config, Result,
-    http::commands::{AuthorizeCommand, Credentials},
-};
+use crate::Result;
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -111,7 +112,7 @@ impl MistAuthController {
         let (username, password) = self.config.auth.as_ref().unwrap();
 
         let auth_command = AuthorizeCommand {
-            authorize: Credentials {
+            authorize: AuthCredentials {
                 username: username.clone(),
                 password: password.clone(),
             },
@@ -158,7 +159,7 @@ impl MistAuthController {
 
         let auth_hash = self.compute_auth_hash(password, &challenge);
         let auth_command = AuthorizeCommand {
-            authorize: Credentials {
+            authorize: AuthCredentials {
                 username: username.clone(),
                 password: auth_hash,
             },

@@ -1,9 +1,11 @@
-use mistserver_rs::{
-    AuthResponse, AuthResponseWrapper, AuthResult, AuthStatus, Config, MistAuthController, Result,
-    http::client::build_http_client,
-};
-
 use std::{sync::Arc, time::Duration};
+
+use mistserver_rs::{
+    Result,
+    auth::{AuthResponse, AuthResponseWrapper, AuthResult, AuthStatus, MistAuthController},
+    models::Config,
+    utils::build_http_client,
+};
 
 #[tokio::test]
 async fn auth_without_authorization() -> Result<()> {
@@ -49,7 +51,7 @@ async fn auth_with_challenge() -> Result<()> {
         },
     })?;
 
-    let m1 = server
+    server
         .mock("GET", "/api")
         .with_status(200)
         .with_header("content-type", "application/json")

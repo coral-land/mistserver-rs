@@ -1,23 +1,25 @@
-use crate::Config;
-use std::env;
+use super::models::Config;
 
-pub fn config() -> Config {
-    Config {
-        mist_api_url: get_env("MIST_API_URL", "http://localhost:8080/api"),
-        auth: get_auth(),
-    }
+pub struct ConfigBuilder {
+    inner: Config,
 }
 
-pub fn get_auth() -> Option<(String, String)> {
-    match (env::var("MIST_USER"), env::var("MIST_PASS")) {
-        (Ok(user), Ok(pass)) => Some((user, pass)),
-        _ => None,
+impl ConfigBuilder {
+    pub fn new(base_api_url: &str) -> Self {
+        Self {
+            inner: Config {
+                mist_api_url: base_api_url.into(),
+                auth: None,
+            },
+        }
     }
-}
 
-fn get_env(key: &'static str, default: &'static str) -> String {
-    match env::var(key) {
-        Err(_) => default.into(),
-        Ok(env_val) => env_val,
+    pub fn with_auth(mut self, username: &str, password: &str) -> Self {
+        self.inner.auth = Some((username.into(), password.into()));
+        self
+    }
+
+    pub fn build(self) -> Config {
+        self.inner
     }
 }
