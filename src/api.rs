@@ -32,19 +32,14 @@ where
         let mut request_url = Url::parse(&self.mist_api_url)?;
         let command = serde_json::to_string(&self.command)?;
 
-        println!(
-            "Sending command to Mist API: {}, url: {}",
-            command, request_url
-        );
-
         request_url
             .query_pairs_mut()
             .append_pair("command", &command);
 
         let response = self.client.get(request_url).send().await?;
         let auth_response: T = response.json().await?;
-
         let response = self.client.get(&self.mist_api_url).send().await?;
+
         Ok(response.json::<T>().await?)
     }
 }
