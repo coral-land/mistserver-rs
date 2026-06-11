@@ -9,6 +9,5 @@ pub(crate) mod commands;
 pub(crate) mod utils;
 pub(crate) use error::*;
 
-pub use client::MistClient;
-pub use error::MistError;
-pub use models::*;
+pub use client::{MistClient, MistClientBuilder};
+pub use error::{MistError, Result};

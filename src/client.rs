@@ -48,8 +48,8 @@ impl MistClientBuilder {
         self
     }
 
-    pub fn with_client(mut self, client: reqwest::Client) -> Self {
-        self.inner.client = Arc::new(client);
+    pub fn with_client(mut self, client: Arc<reqwest::Client>) -> Self {
+        self.inner.client = client;
         self
     }
 
