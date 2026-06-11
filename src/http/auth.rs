@@ -42,7 +42,7 @@ pub enum AuthResult {
 
 pub struct MistAuthController {
     auth: Option<(String, String)>,
-    api: MistApi<AuthorizeCommand>,
+    api: MistApi,
 }
 
 impl MistAuthController {
@@ -53,16 +53,9 @@ impl MistAuthController {
     ) -> Self {
         let (username, password) = auth.clone().unwrap_or_else(|| ("".into(), "".into()));
 
-        let command = AuthorizeCommand {
-            authorize: AuthCredentials {
-                username: username.clone(),
-                password: password.clone(),
-            },
-        };
-
         Self {
             auth,
-            api: MistApi::new(mist_api_url, client, command),
+            api: MistApi::new(mist_api_url, client),
         }
     }
 
@@ -102,7 +95,7 @@ impl MistAuthController {
             },
         };
 
-        let response: AuthResponseWrapper = self.api.send_command().await?;
+        let response: AuthResponseWrapper = self.api.send(auth_command).await?;
         Ok(AuthResult::Required(response.authorize))
     }
 
@@ -139,7 +132,7 @@ impl MistAuthController {
             },
         };
 
-        let response: AuthResponseWrapper = self.api.send_command().await?;
+        let response: AuthResponseWrapper = self.api.send(auth_command).await?;
         Ok(AuthResult::Required(response.authorize))
     }
 

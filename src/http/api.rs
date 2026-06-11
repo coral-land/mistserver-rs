@@ -4,33 +4,26 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::sync::Arc;
 use url::Url;
 
-pub struct MistApi<C>
-where
-    C: Send + Sync + Serialize + DeserializeOwned,
-{
+pub struct MistApi {
     mist_api_url: String,
     client: Arc<Client>,
-    command: C,
 }
 
-impl<C> MistApi<C>
-where
-    C: Send + Sync + Serialize + DeserializeOwned,
-{
-    pub(crate) fn new(mist_api_url: String, client: Arc<Client>, command: C) -> Self {
+impl MistApi {
+    pub(crate) fn new(mist_api_url: String, client: Arc<Client>) -> Self {
         Self {
             mist_api_url,
             client,
-            command,
         }
     }
 
-    pub(crate) async fn send_command<T>(&self) -> Result<T>
+    pub(crate) async fn send<T, C>(&self, command: C) -> Result<T>
     where
-        T: Send + Sync + Serialize + DeserializeOwned,
+        T: Send + Sync + DeserializeOwned,
+        C: Send + Sync + Serialize,
     {
         let mut request_url = Url::parse(&self.mist_api_url)?;
-        let command = serde_json::to_string(&self.command)?;
+        let command = serde_json::to_string(&command)?;
 
         request_url
             .query_pairs_mut()
