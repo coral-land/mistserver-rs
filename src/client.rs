@@ -1,4 +1,4 @@
-use crate::{auth::MistAuthController, utils::build_http_client};
+use crate::{http::MistAuthController, utils::build_http_client};
 use reqwest::Client;
 use std::{sync::Arc, time::Duration};
 

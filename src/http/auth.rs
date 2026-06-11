@@ -1,7 +1,7 @@
 use crate::{
     Result,
-    api::MistApi,
     commands::authorize::{AuthCredentials, AuthorizeCommand},
+    http::MistApi,
 };
 
 use reqwest::Client;
