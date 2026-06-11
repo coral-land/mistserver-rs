@@ -1,12 +1,12 @@
 use crate::{
     Result,
+    api::MistApi,
     commands::authorize::{AuthCredentials, AuthorizeCommand},
 };
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use url::Url;
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct AuthResponse {
@@ -40,11 +40,9 @@ pub enum AuthResult {
     Required(AuthResponse),
 }
 
-#[derive(Clone)]
 pub struct MistAuthController {
-    client: Arc<Client>,
-    mist_api_url: String,
     auth: Option<(String, String)>,
+    api: MistApi<AuthorizeCommand>,
 }
 
 impl MistAuthController {
@@ -53,10 +51,18 @@ impl MistAuthController {
         mist_api_url: String,
         auth: Option<(String, String)>,
     ) -> Self {
+        let (username, password) = auth.clone().unwrap_or_else(|| ("".into(), "".into()));
+
+        let command = AuthorizeCommand {
+            authorize: AuthCredentials {
+                username: username.clone(),
+                password: password.clone(),
+            },
+        };
+
         Self {
-            client,
-            mist_api_url,
             auth,
+            api: MistApi::new(mist_api_url, client, command),
         }
     }
 
@@ -96,9 +102,8 @@ impl MistAuthController {
             },
         };
 
-        let response = self.send_auth_request(auth_command).await?;
-
-        Ok(AuthResult::Required(response))
+        let response: AuthResponseWrapper = self.api.send_command().await?;
+        Ok(AuthResult::Required(response.authorize))
     }
 
     /// Completes challenge-based authentication.
@@ -134,25 +139,8 @@ impl MistAuthController {
             },
         };
 
-        let response = self.send_auth_request(auth_command).await?;
-
-        Ok(AuthResult::Required(response))
-    }
-
-    async fn send_auth_request(&self, auth_command: AuthorizeCommand) -> Result<AuthResponse> {
-        let mut request_url = Url::parse(&self.mist_api_url)?;
-
-        let command = serde_json::to_string(&auth_command)?;
-
-        request_url
-            .query_pairs_mut()
-            .append_pair("command", &command);
-
-        let response = self.client.get(request_url).send().await?;
-
-        let auth_response: AuthResponseWrapper = response.json().await?;
-
-        Ok(auth_response.authorize)
+        let response: AuthResponseWrapper = self.api.send_command().await?;
+        Ok(AuthResult::Required(response.authorize))
     }
 
     fn compute_auth_hash(&self, password: &str, challenge: &str) -> String {
@@ -199,11 +187,9 @@ mod tests {
     async fn authorize_returns_not_required_when_auth_disabled() -> Result<()> {
         let controller =
             MistAuthController::new(test_client(), "http://localhost:8080/api".into(), None);
-
         let result = controller.authorize().await?;
 
         assert_eq!(result, AuthResult::NotRequired);
-
         Ok(())
     }
 
@@ -220,7 +206,7 @@ mod tests {
 
         let _mock = server
             .mock("GET", "/api")
-            .match_query(Matcher::Regex("command=.*".into()))
+            .match_query(Matcher::Any)
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(response)
@@ -259,7 +245,7 @@ mod tests {
 
         let _mock = server
             .mock("GET", "/api")
-            .match_query(Matcher::Regex("command=.*".into()))
+            .match_query(Matcher::Any)
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(response)
@@ -294,9 +280,7 @@ mod tests {
         );
 
         let hash = controller.compute_auth_hash("password", "challenge_str");
-
         let password_hash = format!("{:x}", md5::compute("password".as_bytes()));
-
         let expected = format!(
             "{:x}",
             md5::compute(format!("{password_hash}challenge_str").as_bytes())

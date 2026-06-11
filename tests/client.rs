@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use mistserver_rs::{MistClientBuilder, Result};
 
 #[tokio::test]
