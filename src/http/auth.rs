@@ -1,3 +1,10 @@
+//! Authentication controller for the Mist API.
+//!
+//! This module handles the authentication process for the Mist API,
+//! including challenge-response authentication. It provides a controller
+//! that can perform the initial authorization and complete challenge-based
+//! authentication when required.
+
 use crate::{
     Result,
     commands::authorize::{AuthCredentials, AuthorizeCommand},
@@ -8,38 +15,63 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+/// Response from an authentication request.
+///
+/// Contains the authentication status and an optional challenge string
+/// that must be used for completing the authentication if the status is `Chall`.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct AuthResponse {
+    /// Status of the authentication attempt.
     pub status: Option<AuthStatus>,
+    /// Challenge string for completing authentication, if required.
     pub challenge: Option<String>,
 }
 
 impl AuthResponse {
+    /// Returns `true` if the response indicates a challenge is required.
     pub fn needs_challenge(&self) -> bool {
         matches!(self.status, Some(AuthStatus::Chall))
     }
 }
 
+/// Wrapper for the authentication response as returned by the Mist API.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AuthResponseWrapper {
+    /// The actual authentication response inside the `authorize` field.
     pub authorize: AuthResponse,
 }
 
+/// Authentication status codes returned by the Mist API.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum AuthStatus {
+    /// Authentication succeeded.
     Ok,
+    /// Challenge required – further step needed.
     Chall,
+    /// No account found.
     NoAcc,
+    /// Account created (typically after successful registration).
     AccMade,
 }
 
+/// Result of an authentication attempt.
+///
+/// Indicates whether authentication is not required (disabled on the client)
+/// or required with the server's response.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AuthResult {
+    /// Authentication is not configured on the client.
     NotRequired,
+    /// Authentication is required and the server responded.
     Required(AuthResponse),
 }
 
+/// Controller for handling Mist API authentication.
+///
+/// Manages the authentication flow, including initial authorization
+/// and challenge response. It uses the underlying [`MistApi`] to send
+/// commands and stores credentials only if authentication is enabled.
 #[derive(Debug, Clone, Default)]
 pub struct MistAuthController {
     auth: Option<(String, String)>,
@@ -47,19 +79,24 @@ pub struct MistAuthController {
 }
 
 impl MistAuthController {
+    /// Creates a new authentication controller.
+    ///
+    /// # Arguments
+    /// * `client` - HTTP client to use for API calls.
+    /// * `mist_api_url` - Base URL of the Mist API.
+    /// * `auth` - Optional username/password pair. If `None`, authentication is disabled.
     pub(crate) fn new(
         client: Arc<Client>,
         mist_api_url: String,
         auth: Option<(String, String)>,
     ) -> Self {
-        let (username, password) = auth.clone().unwrap_or_else(|| ("".into(), "".into()));
-
         Self {
             auth,
             api: MistApi::new(mist_api_url, client),
         }
     }
 
+    /// Returns `true` if authentication credentials are set.
     pub fn auth_enabled(&self) -> bool {
         self.auth.is_some()
     }
@@ -137,6 +174,10 @@ impl MistAuthController {
         Ok(AuthResult::Required(response.authorize))
     }
 
+    /// Computes the MD5-based authentication hash required for challenge response.
+    ///
+    /// The algorithm is: MD5(password) concatenated with the challenge,
+    /// then MD5 of that result.
     fn compute_auth_hash(&self, password: &str, challenge: &str) -> String {
         let password_hash = format!("{:x}", md5::compute(password.as_bytes()));
         let combined = format!("{password_hash}{challenge}");

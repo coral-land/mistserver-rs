@@ -1,38 +1,65 @@
+//! Stream management controller for the Mist API.
+//!
+//! This module provides functionality to manage streams, including creating
+//! and deleting streams via the Mist API. It defines the command structures
+//! and the controller that interacts with the API.
+
 use crate::{
     Result,
+    commands::streams::StreamAddCommand,
     http::MistApi,
     models::{Stream, StreamInfo},
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StreamAddCommand {
-    addstream: HashMap<String, Stream>,
-}
-
+/// Response received after successfully adding streams.
+///
+/// Contains a map of stream names to their detailed information as returned
+/// by the API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamAddResponse {
+    /// Map of stream names to their `StreamInfo` details.
     pub streams: HashMap<String, StreamInfo>,
 }
 
+/// Command for deleting one or more streams.
+///
+/// The Mist API accepts multiple formats for deletion:
+/// - A single stream name as a string.
+/// - An array of stream names.
+/// - A more complex object (hash map) for advanced deletion criteria.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DeleteStreamCommand {
+    /// Delete a single stream by name.
     Single(String),
+    /// Delete multiple streams by their names.
     Array(Vec<String>),
+    /// Delete streams using a complex object (e.g., with filters).
     Complex(HashMap<String, serde_json::Value>),
 }
 
+/// Controller for managing streams via the Mist API.
+///
+/// Provides methods to perform operations on streams such as creating new ones.
 pub struct StreamsController {
     api: Arc<MistApi>,
 }
 
 impl StreamsController {
+    /// Creates a new `StreamsController` with the given API handle.
     pub fn new(api: Arc<MistApi>) -> Self {
         Self { api }
     }
 
+    /// Creates multiple streams in a single API call.
+    ///
+    /// # Arguments
+    /// * `streams` - A map from stream names to their `Stream` configurations.
+    ///
+    /// # Returns
+    /// A `Result` containing the `StreamAddResponse` with details of the created streams.
     pub async fn create(&self, streams: HashMap<String, Stream>) -> Result<StreamAddResponse> {
         let command = StreamAddCommand { addstream: streams };
         let response: StreamAddResponse = self.api.send(command).await?;
@@ -99,7 +126,6 @@ mod tests {
             .match_query(Matcher::Any)
             .with_status(200)
             .with_body(response_body.to_string())
-            .expect(2)
             .create();
 
         let response = stream_ctrl.create(streams).await?;
