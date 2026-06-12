@@ -1,65 +1,113 @@
-use crate::{auth::MistAuthController, utils::build_http_client};
-use reqwest::Client;
-use std::{sync::Arc, time::Duration};
+//! Mist API client library.
+//!
+//! This module provides a client for interacting with the Mist API,
+//! including optional authentication and builder-based configuration.
 
+use crate::http::MistAuthController;
+use reqwest::Client;
+use std::sync::Arc;
+
+/// A client for interacting with the Mist API.
+///
+/// Holds the base API URL, authentication credentials (if any), an HTTP client,
+/// and an optional authentication controller for handling authentication flows.
+#[derive(Debug, Clone)]
 pub struct MistClient {
-    mist_api_url: String,
-    auth: Option<(String, String)>,
-    client: Arc<Client>,
-    auth_controller: Option<MistAuthController>,
+    pub(crate) mist_api_url: String,
+    pub(crate) auth: Option<(String, String)>,
+    pub(crate) client: Arc<Client>,
+    pub(crate) auth_controller: Option<MistAuthController>,
 }
 
 impl MistClient {
+    /// Returns a clone of the underlying HTTP client.
+    ///
+    /// The returned `Arc` points to the same inner client instance.
     pub fn client(&self) -> Arc<Client> {
         self.client.clone()
     }
 
+    /// Returns `true` if authentication credentials have been set.
     pub fn auth_enabled(&self) -> bool {
         self.auth.is_some()
     }
 
+    /// Returns a copy of the authentication credentials, if present.
     pub fn auth_credentials(&self) -> Option<(String, String)> {
         self.auth.clone()
     }
 }
 
+/// Builder for creating a [`MistClient`] with custom configuration.
+///
+/// The builder requires an HTTP client to be provided via [`with_client`] before
+/// calling [`build`]; it will panic otherwise.
+///
+/// # Example
+/// ```
+/// use std::sync::Arc;
+/// use reqwest::Client;
+/// use mist_client::MistClientBuilder;
+///
+/// let client = Arc::new(Client::new());
+/// let mist_client = MistClientBuilder::new("https://api.mist.com")
+///     .with_client(client)
+///     .with_auth("user", "pass")
+///     .build();
+/// ```
+#[derive(Debug, Clone, Default)]
 pub struct MistClientBuilder {
-    inner: MistClient,
+    pub mist_api_url: String,
+    pub client: Option<Arc<Client>>,
+    pub auth: Option<(String, String)>,
 }
 
 impl MistClientBuilder {
-    pub fn new(base_api_url: &str, client: Option<Client>) -> Self {
-        let client = Arc::new(client.clone().take().unwrap_or_else(|| {
-            build_http_client(Duration::from_secs(10)).expect("Can not construct default client")
-        }));
-
+    /// Creates a new builder with the given base API URL.
+    ///
+    /// No client or authentication is set initially.
+    pub fn new(base_api_url: &str) -> Self {
         Self {
-            inner: MistClient {
-                mist_api_url: base_api_url.into(),
-                auth: None,
-                client,
-                auth_controller: None,
-            },
+            auth: None,
+            mist_api_url: base_api_url.into(),
+            ..Default::default()
         }
     }
 
+    /// Sets the authentication credentials for the client.
+    ///
+    /// Both username and password are stored as strings.
     pub fn with_auth(mut self, username: &str, password: &str) -> Self {
-        self.inner.auth = Some((username.into(), password.into()));
+        self.auth = Some((username.into(), password.into()));
         self
     }
 
+    /// Sets the HTTP client to be used by the constructed [`MistClient`].
+    ///
+    /// The client is wrapped in an `Arc` and shared.
     pub fn with_client(mut self, client: Arc<reqwest::Client>) -> Self {
-        self.inner.client = client;
+        self.client = Some(client);
         self
     }
 
+    /// Builds the final [`MistClient`].
+    ///
+    /// # Panics
+    /// Panics if no HTTP client has been provided via [`with_client`].
     pub fn build(mut self) -> MistClient {
-        self.inner.auth_controller = Some(MistAuthController::new(
-            self.inner.client.clone(),
-            self.inner.mist_api_url.clone(),
-            self.inner.auth.clone(),
-        ));
+        let auth = self.auth;
+        let client = self.client.take().expect(
+            "Client should be initialized in Mist Client Builder using with_client() method",
+        );
+        let auth_controller = auth.as_ref().map(|_| {
+            MistAuthController::new(client.clone(), self.mist_api_url.clone(), auth.clone())
+        });
 
-        self.inner
+        MistClient {
+            mist_api_url: self.mist_api_url,
+            auth_controller,
+            auth,
+            client,
+        }
     }
 }
