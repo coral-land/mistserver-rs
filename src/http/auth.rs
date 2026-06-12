@@ -40,6 +40,7 @@ pub enum AuthResult {
     Required(AuthResponse),
 }
 
+#[derive(Debug, Clone, Default)]
 pub struct MistAuthController {
     auth: Option<(String, String)>,
     api: MistApi,

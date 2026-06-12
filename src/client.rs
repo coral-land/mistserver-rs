@@ -1,7 +1,8 @@
-use crate::{http::MistAuthController, utils::build_http_client};
+use crate::http::MistAuthController;
 use reqwest::Client;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
+#[derive(Debug, Clone, Default)]
 pub struct MistClient {
     mist_api_url: String,
     auth: Option<(String, String)>,
@@ -23,23 +24,20 @@ impl MistClient {
     }
 }
 
+#[derive(Debug, Clone, Default)]
 pub struct MistClientBuilder {
     inner: MistClient,
+    client: Option<Arc<Client>>,
 }
 
 impl MistClientBuilder {
-    pub fn new(base_api_url: &str, client: Option<Client>) -> Self {
-        let client = Arc::new(client.clone().take().unwrap_or_else(|| {
-            build_http_client(Duration::from_secs(10)).expect("Can not construct default client")
-        }));
-
+    pub fn new(base_api_url: &str) -> Self {
         Self {
             inner: MistClient {
                 mist_api_url: base_api_url.into(),
-                auth: None,
-                client,
-                auth_controller: None,
+                ..Default::default()
             },
+            client: None,
         }
     }
 
@@ -49,13 +47,18 @@ impl MistClientBuilder {
     }
 
     pub fn with_client(mut self, client: Arc<reqwest::Client>) -> Self {
-        self.inner.client = client;
+        self.client = Some(client);
         self
     }
 
     pub fn build(mut self) -> MistClient {
+        let client = self.client.expect(
+            "Client should be initialized in Mist Client Builder using with_client() method",
+        );
+
+        self.inner.client = client.clone();
         self.inner.auth_controller = Some(MistAuthController::new(
-            self.inner.client.clone(),
+            client,
             self.inner.mist_api_url.clone(),
             self.inner.auth.clone(),
         ));

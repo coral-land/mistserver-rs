@@ -4,6 +4,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::sync::Arc;
 use url::Url;
 
+#[derive(Debug, Clone, Default)]
 pub struct MistApi {
     mist_api_url: String,
     client: Arc<Client>,

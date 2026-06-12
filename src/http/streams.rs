@@ -72,9 +72,9 @@ mod tests {
 
         let api_url = "http://localhost:1234/api".to_string();
         let client = test_client();
-        let api = Arc::new(MistApi::new(api_url, client));
-        let controller = StreamsController::new(api);
 
+        let api = Arc::new(MistApi::new(api_url, client));
+        let stream_ctrl = StreamsController::new(api);
         let mut streams = HashMap::new();
 
         streams.insert("stream1".to_string(), sample_stream("push://a"));
@@ -99,13 +99,16 @@ mod tests {
             .match_query(Matcher::Any)
             .with_status(200)
             .with_body(response_body.to_string())
+            .expect(2)
             .create();
 
-        let response = controller.create(streams).await?;
+        let response = stream_ctrl.create(streams).await?;
+
         assert_eq!(response.streams.len(), 2);
         assert!(response.streams.contains_key("stream1"));
         assert!(response.streams.contains_key("stream2"));
         mock.assert();
+
         Ok(())
     }
 }
