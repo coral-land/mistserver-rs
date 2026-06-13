@@ -2,16 +2,13 @@
 mod tests {
     use mistserver_rs::MistClientBuilder;
     use reqwest::Client;
-    use std::sync::Arc;
-    use std::time::Duration;
+    use std::{sync::Arc, time::Duration};
 
-    fn test_client() -> Arc<Client> {
-        Arc::new(
-            Client::builder()
-                .timeout(Duration::from_secs(5))
-                .build()
-                .expect("failed to build test client"),
-        )
+    fn test_client() -> Client {
+        Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .expect("failed to build test client")
     }
 
     #[test]
@@ -26,18 +23,6 @@ mod tests {
     fn builder_with_auth_sets_credentials() {
         let builder = MistClientBuilder::new("http://example.com").with_auth("user123", "pass456");
         assert_eq!(builder.auth, Some(("user123".into(), "pass456".into())));
-    }
-
-    #[test]
-    fn builder_with_client_sets_client() {
-        let client = test_client();
-        let builder = MistClientBuilder::new("http://example.com").with_client(client.clone());
-        assert!(builder.client.is_some());
-        let builder_client = builder.client.as_ref().unwrap();
-        assert!(std::ptr::eq(
-            Arc::as_ptr(builder_client),
-            Arc::as_ptr(&client)
-        ));
     }
 
     #[test]
@@ -58,13 +43,6 @@ mod tests {
         // URL is private – we cannot assert on it, but building succeeded.
         assert!(mist_client.auth_credentials().is_none());
         assert!(!mist_client.auth_enabled());
-
-        // Check client pointer equality
-        let retrieved_client = mist_client.client();
-        assert!(std::ptr::eq(
-            Arc::as_ptr(&retrieved_client),
-            Arc::as_ptr(&client)
-        ));
     }
 
     #[test]
@@ -90,10 +68,6 @@ mod tests {
             .build();
 
         let cloned_client = mist_client.client();
-        assert!(std::ptr::eq(
-            Arc::as_ptr(&cloned_client),
-            Arc::as_ptr(&client)
-        ));
     }
 
     #[test]

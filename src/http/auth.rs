@@ -13,7 +13,6 @@ use crate::{
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 /// Response from an authentication request.
 ///
@@ -86,7 +85,7 @@ impl MistAuthController {
     /// * `mist_api_url` - Base URL of the Mist API.
     /// * `auth` - Optional username/password pair. If `None`, authentication is disabled.
     pub(crate) fn new(
-        client: Arc<Client>,
+        client: Client,
         mist_api_url: String,
         auth: Option<(String, String)>,
     ) -> Self {
@@ -192,10 +191,10 @@ mod tests {
     use crate::{Result, utils::build_http_client};
 
     use mockito::{Matcher, Server};
-    use std::{sync::Arc, time::Duration};
+    use std::time::Duration;
 
-    fn test_client() -> Arc<Client> {
-        Arc::new(build_http_client(Duration::from_secs(10)).expect("failed to build test client"))
+    fn test_client() -> Client {
+        build_http_client(Duration::from_secs(10)).expect("failed to build test client")
     }
 
     #[test]

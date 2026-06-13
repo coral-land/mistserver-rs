@@ -8,7 +8,6 @@
 use crate::Result;
 use reqwest::Client;
 use serde::{Serialize, de::DeserializeOwned};
-use std::sync::Arc;
 use url::Url;
 
 /// Low‑level API client for the Mist server.
@@ -19,7 +18,7 @@ use url::Url;
 #[derive(Debug, Clone, Default)]
 pub struct MistApi {
     mist_api_url: String,
-    client: Arc<Client>,
+    client: Client,
 }
 
 impl MistApi {
@@ -28,7 +27,7 @@ impl MistApi {
     /// # Arguments
     /// * `mist_api_url` - The base URL of the Mist API (e.g., `http://localhost:4242/api`).
     /// * `client` - A shared HTTP client wrapped in an `Arc`.
-    pub(crate) fn new(mist_api_url: String, client: Arc<Client>) -> Self {
+    pub(crate) fn new(mist_api_url: String, client: Client) -> Self {
         Self {
             mist_api_url,
             client,

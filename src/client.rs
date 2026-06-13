@@ -5,7 +5,6 @@
 
 use crate::http::MistAuthController;
 use reqwest::Client;
-use std::sync::Arc;
 
 /// A client for interacting with the Mist API.
 ///
@@ -15,7 +14,7 @@ use std::sync::Arc;
 pub struct MistClient {
     pub(crate) mist_api_url: String,
     pub(crate) auth: Option<(String, String)>,
-    pub(crate) client: Arc<Client>,
+    pub(crate) client: Client,
     pub(crate) auth_controller: Option<MistAuthController>,
 }
 
@@ -23,7 +22,7 @@ impl MistClient {
     /// Returns a clone of the underlying HTTP client.
     ///
     /// The returned `Arc` points to the same inner client instance.
-    pub fn client(&self) -> Arc<Client> {
+    pub fn client(&self) -> Client {
         self.client.clone()
     }
 
@@ -58,7 +57,7 @@ impl MistClient {
 #[derive(Debug, Clone, Default)]
 pub struct MistClientBuilder {
     pub mist_api_url: String,
-    pub client: Option<Arc<Client>>,
+    pub client: Option<Client>,
     pub auth: Option<(String, String)>,
 }
 
@@ -85,7 +84,7 @@ impl MistClientBuilder {
     /// Sets the HTTP client to be used by the constructed [`MistClient`].
     ///
     /// The client is wrapped in an `Arc` and shared.
-    pub fn with_client(mut self, client: Arc<reqwest::Client>) -> Self {
+    pub fn with_client(mut self, client: reqwest::Client) -> Self {
         self.client = Some(client);
         self
     }
@@ -99,6 +98,7 @@ impl MistClientBuilder {
         let client = self.client.take().expect(
             "Client should be initialized in Mist Client Builder using with_client() method",
         );
+
         let auth_controller = auth.as_ref().map(|_| {
             MistAuthController::new(client.clone(), self.mist_api_url.clone(), auth.clone())
         });

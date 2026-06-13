@@ -77,8 +77,8 @@ mod tests {
     use super::*;
     use crate::utils::build_http_client;
 
-    fn test_client() -> Arc<Client> {
-        Arc::new(build_http_client(Duration::from_secs(10)).expect("failed to build test client"))
+    fn test_client() -> Client {
+        build_http_client(Duration::from_secs(10)).expect("failed to build test client")
     }
 
     fn sample_stream(source: &str) -> Stream {
