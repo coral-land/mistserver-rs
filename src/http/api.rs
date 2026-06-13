@@ -64,10 +64,6 @@ impl MistApi {
     /// let response: MyResponse = api.send(MyCommand { param: "value".into() }).await?;
     /// # Ok::<(), mistserver_rs::MistError>(())
     /// ```
-    ///
-    /// **Note:** The current implementation sends two identical requests and
-    /// returns the second response. The first request’s result is ignored.
-    /// This is a known issue and may be fixed in future versions.
     pub(crate) async fn send<T, C>(&self, command: C) -> Result<T>
     where
         T: Send + Sync + DeserializeOwned,

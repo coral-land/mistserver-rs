@@ -57,7 +57,7 @@ impl MistClient {
 #[derive(Debug, Clone, Default)]
 pub struct MistClientBuilder {
     pub mist_api_url: String,
-    pub client: Option<Client>,
+    pub client: Client,
     pub auth: Option<(String, String)>,
 }
 
@@ -69,6 +69,7 @@ impl MistClientBuilder {
         Self {
             auth: None,
             mist_api_url: base_api_url.into(),
+            client: Client::new(),
             ..Default::default()
         }
     }
@@ -85,7 +86,7 @@ impl MistClientBuilder {
     ///
     /// The client is wrapped in an `Arc` and shared.
     pub fn with_client(mut self, client: reqwest::Client) -> Self {
-        self.client = Some(client);
+        self.client = client;
         self
     }
 
@@ -93,11 +94,9 @@ impl MistClientBuilder {
     ///
     /// # Panics
     /// Panics if no HTTP client has been provided via [`with_client`].
-    pub fn build(mut self) -> MistClient {
+    pub fn build(self) -> MistClient {
         let auth = self.auth;
-        let client = self.client.take().expect(
-            "Client should be initialized in Mist Client Builder using with_client() method",
-        );
+        let client = self.client;
 
         let auth_controller = auth.as_ref().map(|_| {
             MistAuthController::new(client.clone(), self.mist_api_url.clone(), auth.clone())

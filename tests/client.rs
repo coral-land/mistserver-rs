@@ -2,7 +2,7 @@
 mod tests {
     use mistserver_rs::MistClientBuilder;
     use reqwest::Client;
-    use std::{sync::Arc, time::Duration};
+    use std::time::Duration;
 
     fn test_client() -> Client {
         Client::builder()
@@ -15,7 +15,6 @@ mod tests {
     fn builder_defaults() {
         let builder = MistClientBuilder::new("http://example.com/api");
         assert_eq!(builder.mist_api_url, "http://example.com/api");
-        assert!(builder.client.is_none());
         assert!(builder.auth.is_none());
     }
 
