@@ -3,7 +3,10 @@
 //! This module provides a client for interacting with the Mist API,
 //! including optional authentication and builder-based configuration.
 
-use crate::http::MistAuthController;
+use crate::{
+    Result,
+    http::{AuthResult, MistAuthController},
+};
 use reqwest::Client;
 
 /// A client for interacting with the Mist API.
@@ -16,6 +19,7 @@ pub struct MistClient {
     pub(crate) auth: Option<(String, String)>,
     pub(crate) client: Client,
     pub(crate) auth_controller: Option<MistAuthController>,
+    pub(crate) auth_result: Option<AuthResult>,
 }
 
 impl MistClient {
@@ -24,6 +28,17 @@ impl MistClient {
     /// The returned `Arc` points to the same inner client instance.
     pub fn client(&self) -> Client {
         self.client.clone()
+    }
+
+    pub async fn authorize(&mut self) -> Result<()> {
+        let Some(controller) = &self.auth_controller else {
+            return Ok(());
+        };
+
+        let auth_result = controller.authorize().await?;
+        self.auth_result = Some(auth_result);
+
+        Ok(())
     }
 
     /// Returns `true` if authentication credentials have been set.
@@ -107,6 +122,7 @@ impl MistClientBuilder {
             auth_controller,
             auth,
             client,
+            auth_result: None,
         }
     }
 }
