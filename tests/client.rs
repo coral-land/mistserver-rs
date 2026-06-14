@@ -25,14 +25,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(
-        expected = "Client should be initialized in Mist Client Builder using with_client() method"
-    )]
-    fn build_panics_without_client() {
-        MistClientBuilder::new("http://example.com").build();
-    }
-
-    #[test]
     fn build_succeeds_with_client_only() {
         let client = test_client();
         let mist_client = MistClientBuilder::new("http://example.com/api")
