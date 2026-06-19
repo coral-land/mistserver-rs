@@ -17,7 +17,7 @@ use url::Url;
 /// `command` query parameter, and deserializes the response.
 #[derive(Debug, Clone, Default)]
 pub struct MistApi {
-    mist_api_url: String,
+    api_url: String,
     client: Client,
 }
 
@@ -27,11 +27,8 @@ impl MistApi {
     /// # Arguments
     /// * `mist_api_url` - The base URL of the Mist API (e.g., `http://localhost:4242/api`).
     /// * `client` - A shared HTTP client wrapped in an `Arc`.
-    pub(crate) fn new(mist_api_url: String, client: Client) -> Self {
-        Self {
-            mist_api_url,
-            client,
-        }
+    pub(crate) fn new(api_url: String, client: Client) -> Self {
+        Self { api_url, client }
     }
 
     /// Sends a command to the Mist API and deserializes the response.
@@ -69,7 +66,7 @@ impl MistApi {
         T: Send + Sync + DeserializeOwned,
         C: Send + Sync + Serialize,
     {
-        let mut request_url = Url::parse(&self.mist_api_url)?;
+        let mut request_url = Url::parse(&self.api_url)?;
         let command = serde_json::to_string(&command)?;
 
         request_url
@@ -79,5 +76,182 @@ impl MistApi {
         let response = self.client.get(request_url).send().await?;
 
         Ok(response.json::<T>().await?)
+    }
+}
+
+/// Builder for constructing a [`MistApi`] instance with a fluent interface.
+///
+/// Allows customisation of the HTTP client and the base API URL before
+/// calling [`build`](ApiBuilder::build). If no customisation is applied,
+/// it defaults to `http://localhost:4242` and a new [`reqwest::Client`].
+///
+/// # Examples
+///
+/// ```no_run
+/// # use reqwest::Client;
+/// # use mistserver_rs::api::ApiBuilder;
+/// let api = ApiBuilder::new()
+///     .with_url("http://mist.example.com/api".into())
+///     .with_client(Client::new())
+///     .build();
+/// ```
+pub struct MistApiBuilder {
+    client: Client,
+    url: String,
+}
+
+/// Default implementation for Mist Api Builder
+///
+impl Default for MistApiBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl MistApiBuilder {
+    /// Creates a new `ApiBuilder` with default settings.
+    ///
+    /// Default URL: `http://localhost:4242`
+    /// Default client: a newly constructed `reqwest::Client`.
+    pub fn new() -> Self {
+        Self {
+            client: Client::new(),
+            url: "http://localhost:4242".into(),
+        }
+    }
+
+    /// Sets the HTTP client to be used by the `MistApi`.
+    ///
+    /// This is useful when you need to share a single client across
+    /// multiple API instances, or when you want to configure
+    /// custom TLS settings, timeouts, etc.
+    pub fn with_client(mut self, client: Client) -> Self {
+        self.client = client;
+        self
+    }
+
+    /// Sets the base URL for the Mist API.
+    ///
+    /// The URL should *not* include a trailing slash or the `/api` path
+    /// unless your Mist server expects it. The `send` method will
+    /// append the `command` query parameter directly to this URL.
+    pub fn with_url(mut self, url: String) -> Self {
+        self.url = url;
+        self
+    }
+
+    /// Consumes the builder and returns a configured [`MistApi`].
+    pub fn build(self) -> MistApi {
+        MistApi::new(self.url, self.client)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde::{Deserialize, Serialize};
+
+    /// Test-only command payload.
+    #[derive(Debug, Serialize, PartialEq)]
+    struct TestCommand {
+        key: String,
+    }
+
+    #[derive(Debug, Deserialize, Serialize, PartialEq)]
+    struct TestResponse {
+        value: String,
+    }
+
+    #[test]
+    fn builder_defaults() {
+        let api = MistApiBuilder::new().build();
+        assert_eq!(api.api_url, "http://localhost:4242");
+    }
+
+    #[test]
+    fn builder_with_url() {
+        let api = MistApiBuilder::new()
+            .with_url("https://mist.example.com".into())
+            .build();
+        assert_eq!(api.api_url, "https://mist.example.com");
+    }
+
+    #[tokio::test]
+    async fn send_command_ok() {
+        let mut server = mockito::Server::new_async().await;
+        let command = TestCommand {
+            key: "my_key".into(),
+        };
+        let expected_response = TestResponse {
+            value: "my_value".into(),
+        };
+
+        let expected_body = serde_json::to_string(&expected_response).unwrap();
+
+        let _mock = server
+            .mock("GET", "/")
+            .match_query(mockito::Matcher::AllOf(vec![mockito::Matcher::UrlEncoded(
+                "command".into(),
+                serde_json::to_string(&command).unwrap(),
+            )]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(&expected_body)
+            .create_async()
+            .await;
+
+        let api = MistApi::new(server.url(), Client::new());
+        let response: TestResponse = api.send(command).await.unwrap();
+
+        assert_eq!(response, expected_response);
+        _mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn send_command_http_error() {
+        let mut server = mockito::Server::new_async().await;
+        let command = TestCommand { key: "bad".into() };
+
+        let _mock = server
+            .mock("GET", "/")
+            .match_query(mockito::Matcher::AllOf(vec![mockito::Matcher::UrlEncoded(
+                "command".into(),
+                serde_json::to_string(&command).unwrap(),
+            )]))
+            .with_status(500)
+            .create_async()
+            .await;
+
+        let api = MistApi::new(server.url(), Client::new());
+        let result: Result<TestResponse> = api.send(command).await;
+
+        assert!(result.is_err());
+        _mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn send_command_invalid_json() {
+        let mut server = mockito::Server::new_async().await;
+        let command = TestCommand {
+            key: "invalid_json".into(),
+        };
+
+        let _mock = server
+            .mock("GET", "/")
+            .match_query(mockito::Matcher::AllOf(vec![mockito::Matcher::UrlEncoded(
+                "command".into(),
+                serde_json::to_string(&command).unwrap(),
+            )]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body("not json")
+            .create_async()
+            .await;
+
+        let api = MistApi::new(server.url(), Client::new());
+        let result: Result<TestResponse> = api.send(command).await;
+
+        assert!(result.is_err());
+        _mock.assert_async().await;
     }
 }
