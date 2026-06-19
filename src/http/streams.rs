@@ -5,10 +5,7 @@
 //! and the controller that interacts with the API.
 
 use crate::{
-    Result,
-    commands::streams::StreamAddCommand,
-    http::MistApi,
-    models::{Stream, StreamInfo},
+    Result, StreamInfo, commands::streams::StreamAddCommand, http::MistApi, models::Stream,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};

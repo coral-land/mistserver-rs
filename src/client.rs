@@ -3,9 +3,11 @@
 //! This module provides a client for interacting with the Mist API,
 //! including optional authentication and builder-based configuration.
 
+use std::sync::Arc;
+
 use crate::{
     Result,
-    http::{AuthResult, MistAuthController},
+    http::{AuthResult, MistApi, MistApiBuilder, MistAuthController, StreamsController},
 };
 use reqwest::Client;
 
@@ -15,21 +17,13 @@ use reqwest::Client;
 /// and an optional authentication controller for handling authentication flows.
 #[derive(Debug, Clone)]
 pub struct MistClient {
-    pub(crate) mist_api_url: String,
     pub(crate) auth: Option<(String, String)>,
-    pub(crate) client: Client,
     pub(crate) auth_controller: Option<MistAuthController>,
     pub(crate) auth_result: Option<AuthResult>,
+    pub(crate) api: Arc<MistApi>,
 }
 
 impl MistClient {
-    /// Returns a clone of the underlying HTTP client.
-    ///
-    /// The returned `Arc` points to the same inner client instance.
-    pub fn client(&self) -> Client {
-        self.client.clone()
-    }
-
     pub async fn authorize(&mut self) -> Result<()> {
         let Some(controller) = &self.auth_controller else {
             return Ok(());
@@ -39,6 +33,10 @@ impl MistClient {
         self.auth_result = Some(auth_result);
 
         Ok(())
+    }
+
+    pub async fn streams(&self) -> StreamsController {
+        StreamsController::new(self.api.clone())
     }
 
     /// Returns `true` if authentication credentials have been set.
@@ -117,11 +115,17 @@ impl MistClientBuilder {
             MistAuthController::new(client.clone(), self.mist_api_url.clone(), auth.clone())
         });
 
+        let api = Arc::new(
+            MistApiBuilder::new()
+                .with_client(client.clone())
+                .with_url(self.mist_api_url)
+                .build(),
+        );
+
         MistClient {
-            mist_api_url: self.mist_api_url,
+            api,
             auth_controller,
             auth,
-            client,
             auth_result: None,
         }
     }
