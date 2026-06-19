@@ -129,7 +129,6 @@ impl MistClientBuilder {
             auth: None,
             mist_api_url: base_api_url.into(),
             client: Client::new(),
-            ..Default::default()
         }
     }
 

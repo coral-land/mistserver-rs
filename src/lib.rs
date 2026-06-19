@@ -8,4 +8,3 @@ pub(crate) mod utils;
 pub use client::{MistClient, MistClientBuilder};
 pub use error::{MistError, Result};
 pub use models::*;
-
