@@ -2,6 +2,25 @@
 //!
 //! This module provides a client for interacting with the Mist API,
 //! including optional authentication and builder-based configuration.
+//!
+//! # Quick start
+//! ```
+//! use mist_client::{MistClient, MistClientBuilder};
+//! use reqwest::Client;
+//!
+//! let client = Client::new();
+//! let mist = MistClientBuilder::new("http://localhost:4242")
+//!     .with_client(client)
+//!     .with_auth("admin", "password")
+//!     .build();
+//!
+//! // Authorize (if credentials provided)
+//! // mist.authorize().await?;
+//!
+//! // Get a streams controller
+//! // let streams = mist.streams().await;
+//! // streams.create(...).await?;
+//! ```
 
 use std::sync::Arc;
 
@@ -15,15 +34,30 @@ use reqwest::Client;
 ///
 /// Holds the base API URL, authentication credentials (if any), an HTTP client,
 /// and an optional authentication controller for handling authentication flows.
+///
+/// # Fields
+/// Most fields are internal; use the provided methods to interact with the API.
 #[derive(Debug, Clone)]
 pub struct MistClient {
+    /// Optional plain‑text authentication credentials (username, password).
     pub(crate) auth: Option<(String, String)>,
+    /// Controller that handles the challenge‑response authentication flow.
     pub(crate) auth_controller: Option<MistAuthController>,
+    /// The result of the last authentication attempt (if any).
     pub(crate) auth_result: Option<AuthResult>,
+    /// Shared API client that executes HTTP requests.
     pub(crate) api: Arc<MistApi>,
 }
 
 impl MistClient {
+    /// Performs the authentication handshake if credentials are set.
+    ///
+    /// This must be called before any other API request if the server requires
+    /// authentication. It stores the authentication result internally.
+    ///
+    /// # Returns
+    /// - `Ok(())` on success, or if no credentials were provided.
+    /// - `Err` if authentication fails.
     pub async fn authorize(&mut self) -> Result<()> {
         let Some(controller) = &self.auth_controller else {
             return Ok(());
@@ -35,6 +69,16 @@ impl MistClient {
         Ok(())
     }
 
+    /// Returns a `StreamsController` for managing streams.
+    ///
+    /// This controller can be used to create, update, delete, and list streams.
+    ///
+    /// # Example
+    /// ```
+    /// # let client = MistClientBuilder::new("http://localhost:4242").build();
+    /// let streams = client.streams().await;
+    /// // streams.create(...).await?;
+    /// ```
     pub async fn streams(&self) -> StreamsController {
         StreamsController::new(self.api.clone())
     }
@@ -53,7 +97,6 @@ impl MistClient {
 /// Builder for creating a [`MistClient`] with custom configuration.
 ///
 /// The builder requires an HTTP client to be provided via [`with_client`] before
-/// calling [`build`]; it will panic otherwise.
 ///
 /// # Example
 /// ```
@@ -62,15 +105,18 @@ impl MistClient {
 /// use mist_client::MistClientBuilder;
 ///
 /// let client = Arc::new(Client::new());
-/// let mist_client = MistClientBuilder::new("https://api.mist.com")
+/// let mist_client = MistClientBuilder::new("http://localhost:4242")
 ///     .with_client(client)
 ///     .with_auth("user", "pass")
 ///     .build();
 /// ```
 #[derive(Debug, Clone, Default)]
 pub struct MistClientBuilder {
+    /// The base URL of the Mist API (e.g., `http://localhost:4242`).
     pub mist_api_url: String,
+    /// The HTTP client used for all requests.
     pub client: Client,
+    /// Optional authentication credentials (username, password).
     pub auth: Option<(String, String)>,
 }
 
@@ -105,8 +151,6 @@ impl MistClientBuilder {
 
     /// Builds the final [`MistClient`].
     ///
-    /// # Panics
-    /// Panics if no HTTP client has been provided via [`with_client`].
     pub fn build(self) -> MistClient {
         let auth = self.auth;
         let client = self.client;
