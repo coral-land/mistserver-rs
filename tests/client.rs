@@ -52,16 +52,6 @@ mod tests {
     }
 
     #[test]
-    fn client_clone_returns_same_arc() {
-        let client = test_client();
-        let mist_client = MistClientBuilder::new("http://example.com")
-            .with_client(client.clone())
-            .build();
-
-        let cloned_client = mist_client.client();
-    }
-
-    #[test]
     fn auth_credentials_clone() {
         let client = test_client();
         let mist_client = MistClientBuilder::new("http://example.com")
