@@ -79,7 +79,7 @@ impl MistClient {
     /// let streams = client.streams().await;
     /// // streams.create(...).await?;
     /// ```
-    pub async fn streams(&self) -> StreamsController {
+    pub fn streams(&self) -> StreamsController {
         StreamsController::new(self.api.clone())
     }
 
