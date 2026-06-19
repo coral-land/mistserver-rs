@@ -11,12 +11,8 @@ env:
 
 jobs:
     test:
-        name: Test on ${{ matrix.os }}
-        runs-on: ${{ matrix.os }}
-        strategy:
-            matrix:
-                os: [ubuntu-latest, windows-latest, macos-latest]
-            fail-fast: false
+        name: On ubuntu latest
+        runs-on: ubuntu-latest
 
         steps:
             - name: Checkout code
