@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-mistserver-rs = { git = "https://github.com/coral-land/mistserver-rs.git", version = "0.1.0" }
+mistserver-rs = { path = "../../" }
+
 reqwest = "0.13.4"
 tokio = { version = "1.52.3", features = ["full"] }
+tracing-subscriber = "0.3.23"

@@ -66,6 +66,28 @@ pub enum AuthResult {
     Required(AuthResponse),
 }
 
+impl AuthResult {
+    pub fn needs_challenge(&self) -> bool {
+        match self {
+            AuthResult::Required(AuthResponse { status, challenge }) => match status {
+                Some(AuthStatus::Chall) => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    pub fn challenge(&self) -> Option<String> {
+        match self {
+            AuthResult::Required(AuthResponse { status, challenge }) => match status {
+                Some(AuthStatus::Chall) => challenge.clone(),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+}
+
 /// Controller for handling Mist API authentication.
 ///
 /// Manages the authentication flow, including initial authorization
