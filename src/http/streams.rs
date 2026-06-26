@@ -5,9 +5,10 @@
 //! and the controller that interacts with the API.
 
 use crate::{
-    Result, StreamInfo, commands::streams::StreamAddCommand, http::MistApi, models::Stream,
+    MistError, Result, StreamInfo, commands::streams::StreamAddCommand, http::MistApi,
+    models::Stream,
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
 /// Response received after successfully adding streams.
@@ -15,39 +16,43 @@ use std::{collections::HashMap, sync::Arc};
 /// Contains a map of stream names to their detailed information as returned
 /// by the API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StreamAddResponse {
+pub struct StreamsEndpointResponse {
     /// Map of stream names to their `StreamInfo` details.
+    #[serde(deserialize_with = "deserialize_streams_map")]
     pub streams: HashMap<String, StreamInfo>,
 }
 
-/// Command for deleting one or more streams.
-///
-/// The Mist API accepts multiple formats for deletion:
-/// - A single stream name as a string.
-/// - An array of stream names.
-/// - A more complex object (hash map) for advanced deletion criteria.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum DeleteStreamCommand {
-    /// Delete a single stream by name.
-    Single(String),
-    /// Delete multiple streams by their names.
-    Array(Vec<String>),
-    /// Delete streams using a complex object (e.g., with filters).
-    Complex(HashMap<String, serde_json::Value>),
+fn deserialize_streams_map<'de, D>(
+    deserializer: D,
+) -> std::result::Result<HashMap<String, StreamInfo>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    let raw: HashMap<String, serde_json::Value> = HashMap::deserialize(deserializer)?;
+    let mut result = HashMap::new();
+    for (key, value) in raw {
+        if key == "incomplete list" {
+            // skip the marker
+            continue;
+        }
+        let info: StreamInfo = serde_json::from_value(value).map_err(Error::custom)?;
+        result.insert(key, info);
+    }
+    Ok(result)
 }
 
 /// Controller for managing streams via the Mist API.
 ///
 /// Provides methods to perform operations on streams such as creating new ones.
-pub struct StreamsController {
-    api: Arc<MistApi>,
+pub struct StreamsApi {
+    transport: Arc<MistApi>,
 }
 
-impl StreamsController {
+impl StreamsApi {
     /// Creates a new `StreamsController` with the given API handle.
-    pub fn new(api: Arc<MistApi>) -> Self {
-        Self { api }
+    pub fn new(transport: Arc<MistApi>) -> Self {
+        Self { transport }
     }
 
     /// Creates multiple streams in a single API call.
@@ -57,9 +62,27 @@ impl StreamsController {
     ///
     /// # Returns
     /// A `Result` containing the `StreamAddResponse` with details of the created streams.
-    pub async fn create(&self, streams: HashMap<String, Stream>) -> Result<StreamAddResponse> {
+    async fn create(&self, streams: HashMap<String, Stream>) -> Result<StreamsEndpointResponse> {
         let command = StreamAddCommand { addstream: streams };
-        let response: StreamAddResponse = self.api.send(command).await?;
+        let response = self.transport.send(command).await?;
+        Ok(response)
+    }
+
+    /// Create one single stream
+    ///
+    /// # Returns
+    /// A `Result` containing the `StreamAddResponse` with details of the created streams.
+    pub async fn create_one(&self, stream: Stream) -> Result<StreamsEndpointResponse> {
+        let mut streams_create_map = HashMap::new();
+        streams_create_map.insert(stream.name.clone(), stream);
+
+        let response = self.create(streams_create_map).await?;
+        if response.streams.len() <= 0 {
+            return Err(MistError::Api {
+                message: "No streams returned in response, something broken".into(),
+            });
+        }
+
         Ok(response)
     }
 }
@@ -98,7 +121,7 @@ mod tests {
         let client = test_client();
 
         let api = Arc::new(MistApi::new(api_url, client));
-        let stream_ctrl = StreamsController::new(api);
+        let stream_ctrl = StreamsApi::new(api);
         let mut streams = HashMap::new();
 
         streams.insert("stream1".to_string(), sample_stream("push://a"));

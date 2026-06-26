@@ -5,7 +5,7 @@
 //! the responses. It uses HTTP GET requests with a `command` query
 //! parameter containing the JSON‑encoded command.
 
-use crate::Result;
+use crate::{MistError, Result};
 use reqwest::Client;
 use serde::{Serialize, de::DeserializeOwned};
 use url::Url;
@@ -42,25 +42,6 @@ impl MistApi {
     ///
     /// # Returns
     /// A `Result` containing the deserialized response of type `T`.
-    ///
-    /// # Example
-    /// ```no_run
-    /// # use mistserver_rs::MistApi;
-    /// # use std::sync::Arc;
-    /// # use reqwest::Client;
-    /// # use serde::{Serialize, Deserialize};
-    /// #[derive(Serialize)]
-    /// struct MyCommand { param: String }
-    /// #[derive(Deserialize)]
-    /// struct MyResponse { result: String }
-    ///
-    /// let api = MistApi::new(
-    ///     "http://localhost:4242/api".to_string(),
-    ///     Arc::new(Client::new()),
-    /// );
-    /// let response: MyResponse = api.send(MyCommand { param: "value".into() }).await?;
-    /// # Ok::<(), mistserver_rs::MistError>(())
-    /// ```
     pub(crate) async fn send<T, C>(&self, command: C) -> Result<T>
     where
         T: Send + Sync + DeserializeOwned,
@@ -69,20 +50,36 @@ impl MistApi {
         let mut request_url = Url::parse(&self.api_url)?;
         let command = serde_json::to_string(&command)?;
 
+        tracing::debug!(command = %command, url = %request_url, "Sending API request");
+
         request_url
             .query_pairs_mut()
             .append_pair("command", &command);
 
         let response = self.client.get(request_url).send().await?;
+        let response_text = response.text().await?;
 
-        Ok(response.json::<T>().await?)
+        tracing::info!(response_text);
+
+        let json_value: serde_json::Value = serde_json::from_str(&response_text)?;
+        let to_string = serde_json::to_string_pretty(&json_value)?;
+
+        println!("{}", to_string);
+
+        if let Some(error_msg) = json_value["error"].as_str() {
+            return Err(MistError::Api {
+                message: error_msg.into(),
+            });
+        }
+
+        Ok(serde_json::from_value(json_value)?)
     }
 }
 
 /// Builder for constructing a [`MistApi`] instance with a fluent interface.
 ///
-/// Allows customisation of the HTTP client and the base API URL before
-/// calling [`build`](ApiBuilder::build). If no customisation is applied,
+/// Allows customization of the HTTP client and the base API URL before
+/// calling [`build`](ApiBuilder::build). If no customization is applied,
 /// it defaults to `http://localhost:4242` and a new [`reqwest::Client`].
 ///
 /// # Examples

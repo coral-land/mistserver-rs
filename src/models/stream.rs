@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::{MistError, Result};
+
 /// A stream configuration object, sent in `addstream` / `streams` API calls.
 ///
 /// # Required
@@ -13,31 +15,36 @@ pub struct Stream {
     /// **Required.** The source of the media.
     ///
     /// Can be a file path, `push://`, `dtsc://`, RTSP URL, etc.
-    /// See manual §3.3 for all types.
     pub source: String,
+
+    /// **Required.** The name of the stream
+    ///
+    /// This will be generated automatically if you not specify in builder.
+    #[serde(skip_serializing, skip_deserializing)]
+    pub name: String,
 
     /// If `true`, keep the stream active even with no viewers.
     /// Avoids startup delay for the first viewer.
-    /// Default: `false` (§3.2).
+    /// Default: `false`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub always_on: Option<bool>,
 
     /// Buffer duration in milliseconds for live streams.
     /// Controls how far back viewers can seek.
-    /// Default: `50000` (50 sec) (§3.3.1).
+    /// Default: `50000` (50 sec).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub buffer_time: Option<i32>,
 
     /// Debug verbosity level (1–6).
     /// - `3` = production default
     /// - lower = less logging
-    /// - higher = more detail (§2.2).
+    /// - higher = more detail.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub debug: Option<i32>,
 
     /// If this stream cannot be opened (e.g. source offline),
     /// redirect requests to this stream name.
-    /// Supports variable substitution (§3.4).
+    /// Supports variable substitution.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fallback_stream: Option<String>,
 
@@ -47,6 +54,8 @@ pub struct Stream {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub extra: Option<HashMap<String, serde_json::Value>>,
 }
+
+impl Stream {}
 
 /// Detailed information about a stream, returned by the server in responses
 /// (e.g. after `addstream` or when listing streams).
@@ -59,10 +68,10 @@ pub struct StreamInfo {
     pub source: String,
 
     /// Human‑readable status (e.g. `"Available"` for VoD, or an error message).
-    pub error: String,
+    pub error: Option<String>,
 
     /// Online state: `0` = error, `1` = active, `2` = inactive (§7.1.4).
-    pub online: i32,
+    pub online: Option<i32>,
 
     /// Any extra metadata the server may include (e.g. `bufferTime`, `alwaysOn`).
     #[serde(flatten)]
@@ -73,7 +82,7 @@ pub struct StreamInfo {
 #[derive(Default, Debug)]
 pub struct StreamBuilder {
     source: String,
-    name: Option<String>, // not used in the final Stream, but kept for possible future use
+    name: String,
     always_on: Option<bool>,
     buffer_time: Option<i32>,
     debug: Option<i32>,
@@ -83,9 +92,10 @@ pub struct StreamBuilder {
 
 impl StreamBuilder {
     /// Start with a mandatory `source` (required).
-    pub fn new(source: &'static str) -> Self {
+    pub fn new(name: &str, source: &str) -> Self {
         Self {
             source: source.into(),
+            name: name.into(),
             ..Default::default()
         }
     }
@@ -93,7 +103,7 @@ impl StreamBuilder {
     /// [Optional] Set a name for the stream (not actually used by the API,
     /// included for consistency; the name is the key in the `HashMap` when adding streams).
     pub fn name(mut self, value: &'static str) -> Self {
-        self.name = Some(value.into());
+        self.name = value.into();
         self
     }
 
@@ -127,23 +137,37 @@ impl StreamBuilder {
         self
     }
 
+    fn validate_stream_name(&self, name: &str) -> Result<()> {
+        if !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+        {
+            return Err(MistError::InvalidStreamName(name.into()));
+        }
+
+        Ok(())
+    }
+
     /// Build the final `Stream` object.
-    pub fn build(self) -> Stream {
-        Stream {
+    pub fn build(self) -> Result<Stream> {
+        self.validate_stream_name(&self.name)?;
+
+        Ok(Stream {
+            name: self.name,
             source: self.source,
             always_on: self.always_on,
             buffer_time: self.buffer_time,
             debug: self.debug,
             fallback_stream: self.fallback_stream,
             extra: self.extra,
-        }
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::{Value, json};
+    use serde_json::json;
     use std::collections::HashMap;
 
     // ------------------------------------------------------------------------
@@ -151,30 +175,32 @@ mod tests {
     // ------------------------------------------------------------------------
 
     #[test]
-    fn builder_defaults() {
-        let stream = StreamBuilder::new("push://").build();
+    fn builder_defaults() -> Result<()> {
+        let stream = StreamBuilder::new("name", "push://").build()?;
         assert_eq!(stream.source, "push://");
         assert!(stream.always_on.is_none());
         assert!(stream.buffer_time.is_none());
         assert!(stream.debug.is_none());
         assert!(stream.fallback_stream.is_none());
         assert!(stream.extra.is_none());
+
+        Ok(())
     }
 
     #[test]
-    fn builder_set_all_fields() {
+    fn builder_set_all_fields() -> Result<()> {
         let mut extra = HashMap::new();
         extra.insert("cut_time".to_string(), json!(0));
         extra.insert("segment_size".to_string(), json!(6000));
 
-        let stream = StreamBuilder::new("dtsc://1.2.3.4/video")
+        let stream = StreamBuilder::new("name", "dtsc://1.2.3.4/video")
             .name("ignored") // this field is not used in the final Stream
             .always_on(true)
             .buffer_time(30000)
             .debug(4)
             .fallback_stream("backup")
             .extra(extra.clone())
-            .build();
+            .build()?;
 
         assert_eq!(stream.source, "dtsc://1.2.3.4/video");
         assert_eq!(stream.always_on, Some(true));
@@ -182,14 +208,16 @@ mod tests {
         assert_eq!(stream.debug, Some(4));
         assert_eq!(stream.fallback_stream, Some("backup".to_string()));
         assert_eq!(stream.extra, Some(extra));
+
+        Ok(())
     }
 
     #[test]
-    fn builder_partial_fields() {
-        let stream = StreamBuilder::new("file:///media/video.mp4")
+    fn builder_partial_fields() -> Result<()> {
+        let stream = StreamBuilder::new("name", "file:///media/video.mp4")
             .always_on(false)
             .debug(3)
-            .build();
+            .build()?;
 
         assert_eq!(stream.source, "file:///media/video.mp4");
         assert_eq!(stream.always_on, Some(false));
@@ -197,6 +225,8 @@ mod tests {
         assert_eq!(stream.debug, Some(3));
         assert!(stream.fallback_stream.is_none());
         assert!(stream.extra.is_none());
+
+        Ok(())
     }
 
     // ------------------------------------------------------------------------
@@ -209,6 +239,7 @@ mod tests {
         extra.insert("custom".to_string(), json!("value"));
 
         let stream = Stream {
+            name: "".into(),
             source: "push://".to_string(),
             always_on: Some(true),
             buffer_time: Some(50000),
@@ -224,7 +255,7 @@ mod tests {
             "bufferTime": 50000,
             "debug": 3,
             "fallbackStream": "fallback",
-            "custom": "value"   // flattened extra
+            "custom": "value"
         });
         assert_eq!(value, expected);
     }
@@ -232,6 +263,7 @@ mod tests {
     #[test]
     fn serialize_stream_only_required() {
         let stream = Stream {
+            name: "".into(),
             source: "file:///movie.mp4".to_string(),
             always_on: None,
             buffer_time: None,
@@ -254,6 +286,7 @@ mod tests {
         extra.insert("password".to_string(), json!("secret"));
 
         let stream = Stream {
+            name: "".into(),
             source: "rtsp://host/path".to_string(),
             always_on: None,
             buffer_time: None,
@@ -271,10 +304,6 @@ mod tests {
         assert_eq!(value, expected);
     }
 
-    // ------------------------------------------------------------------------
-    // Deserialization tests (JSON -> StreamInfo / Stream)
-    // ------------------------------------------------------------------------
-
     #[test]
     fn deserialize_stream_info() {
         let json_data = json!({
@@ -289,9 +318,9 @@ mod tests {
 
         let info: StreamInfo = serde_json::from_value(json_data).unwrap();
         assert_eq!(info.name, "mystream");
+        assert_eq!(info.error, Some("Available".into()));
+        assert_eq!(info.online, Some(2 as i32));
         assert_eq!(info.source, "push://");
-        assert_eq!(info.error, "Available");
-        assert_eq!(info.online, 2);
         assert_eq!(info.extra["alwaysOn"], true);
         assert_eq!(info.extra["bufferTime"], 30000);
         assert_eq!(info.extra["extraField"], "some value");
@@ -309,8 +338,8 @@ mod tests {
         let info: StreamInfo = serde_json::from_value(json_data).unwrap();
         assert_eq!(info.name, "vod");
         assert_eq!(info.source, "/media/video.mp4");
-        assert_eq!(info.error, "Available");
-        assert_eq!(info.online, 2);
+        assert_eq!(info.error, Some("Available".into()));
+        assert_eq!(info.online, Some(2 as i32));
         assert!(info.extra.is_empty());
     }
 
@@ -348,6 +377,7 @@ mod tests {
         extra.insert("secret".to_string(), json!("1234"));
 
         let original = Stream {
+            name: "".into(),
             source: "dtsc://server/stream".to_string(),
             always_on: Some(false),
             buffer_time: Some(40000),

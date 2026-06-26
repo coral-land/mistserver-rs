@@ -14,19 +14,13 @@
 //!     .with_auth("admin", "password")
 //!     .build();
 //!
-//! // Authorize (if credentials provided)
-//! // mist.authorize().await?;
-//!
-//! // Get a streams controller
-//! // let streams = mist.streams().await;
-//! // streams.create(...).await?;
 //! ```
 
 use std::sync::Arc;
 
 use crate::{
     Result,
-    http::{AuthResult, MistApi, MistApiBuilder, MistAuthController, StreamsController},
+    http::{AuthResult, MistApi, MistApiBuilder, MistAuthController, StreamsApi},
 };
 use reqwest::Client;
 
@@ -64,9 +58,16 @@ impl MistClient {
         };
 
         let auth_result = controller.authorize().await?;
-        self.auth_result = Some(auth_result);
 
-        Ok(())
+        match (auth_result.needs_challenge(), auth_result.challenge()) {
+            (true, Some(challenge)) => {
+                let auth_result = controller.authorize_with_challenge(challenge).await?;
+                self.auth_result = Some(auth_result);
+
+                Ok(())
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Returns a `StreamsController` for managing streams.
@@ -79,8 +80,8 @@ impl MistClient {
     /// let streams = client.streams().await;
     /// // streams.create(...).await?;
     /// ```
-    pub fn streams(&self) -> StreamsController {
-        StreamsController::new(self.api.clone())
+    pub fn streams(&self) -> StreamsApi {
+        StreamsApi::new(self.api.clone())
     }
 
     /// Returns `true` if authentication credentials have been set.
