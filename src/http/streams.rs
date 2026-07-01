@@ -5,44 +5,13 @@
 //! and the controller that interacts with the API.
 
 use crate::{
-    MistError, Result, StreamInfo,
-    commands::streams::{DeleteStreamCommand, StreamAddCommand},
+    MistError, Result,
+    commands::streams::{DeleteStreamCommand, StreamAddCommand, StreamAddCommandResponse},
     http::MistApi,
     models::Stream,
 };
-use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
-
-/// Response received after successfully adding streams.
-///
-/// Contains a map of stream names to their detailed information as returned
-/// by the API.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StreamsEndpointResponse {
-    /// Map of stream names to their `StreamInfo` details.
-    #[serde(deserialize_with = "deserialize_streams_map")]
-    pub streams: HashMap<String, StreamInfo>,
-}
-
-fn deserialize_streams_map<'de, D>(
-    deserializer: D,
-) -> std::result::Result<HashMap<String, StreamInfo>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    use serde::de::Error;
-    let raw: HashMap<String, serde_json::Value> = HashMap::deserialize(deserializer)?;
-    let mut result = HashMap::new();
-    for (key, value) in raw {
-        if key == "incomplete list" {
-            continue;
-        }
-        let info: StreamInfo = serde_json::from_value(value).map_err(Error::custom)?;
-        result.insert(key, info);
-    }
-    Ok(result)
-}
 
 /// Controller for managing streams via the Mist API.
 ///
@@ -64,7 +33,7 @@ impl StreamsApi {
     ///
     /// # Returns
     /// A `Result` containing the `StreamAddResponse` with details of the created streams.
-    async fn create(&self, streams: HashMap<String, Stream>) -> Result<StreamsEndpointResponse> {
+    async fn create(&self, streams: HashMap<String, Stream>) -> Result<StreamAddCommandResponse> {
         let command = StreamAddCommand { addstream: streams };
         let response = self.transport.send(command).await?;
         Ok(response)
@@ -75,7 +44,7 @@ impl StreamsApi {
     ///
     /// # Returns
     /// A `Result` containing the `StreamAddResponse` with details of the created streams.
-    pub async fn add_stream(&self, stream: Stream) -> Result<StreamsEndpointResponse> {
+    pub async fn add_stream(&self, stream: Stream) -> Result<StreamAddCommandResponse> {
         let mut streams_create_map = HashMap::new();
         streams_create_map.insert(stream.name.clone(), stream);
 
@@ -97,9 +66,9 @@ impl StreamsApi {
     pub async fn add_many_stream(
         &self,
         streams: HashMap<String, Stream>,
-    ) -> Result<StreamsEndpointResponse> {
+    ) -> Result<StreamAddCommandResponse> {
         let response = self.create(streams).await?;
-        if response.streams.len() <= 0 {
+        if response.streams.is_empty() {
             return Err(MistError::Api {
                 message: "No streams returned in response, something broken".into(),
             });
@@ -108,6 +77,11 @@ impl StreamsApi {
         Ok(response)
     }
 
+    /// Deletes one or more streams by their names.
+    ///
+    /// # Returns
+    /// A `Result` indicating success or failure of the delete operation.
+    /// You will get Ok() if the delete operation was successful, or an error if it failed.
     pub async fn delete_stream(&self, names: Vec<String>) -> Result<()> {
         let command = DeleteStreamCommand {
             deletestream: names,
