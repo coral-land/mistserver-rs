@@ -1,3 +1,5 @@
+use std::{thread::sleep, time::Duration};
+
 use mistserver_rs::{MistClientBuilder, StreamBuilder};
 use reqwest::Client;
 
@@ -25,13 +27,10 @@ async fn main() {
         }
     }
 
-    let builder_result = StreamBuilder::new(
-        "stream_some",
-        "https://st1101.gapfilm.ir/s/2026/1/6971f6b03fb44d894fd9ea70/c_x264_1280.mp4/chunk.m3u8?mk=tv8lwyGF_egMa2LZctI1Ww&si=786c6d55-3074-4297-b673-9d145e361da7&sc=GF_WEBSITE&app=Web&ts=Gapfilm",
-    )
-    .always_on(true)
-    .debug(10)
-    .build();
+    let builder_result = StreamBuilder::new("stream_some", "/video/file.mp4")
+        .always_on(true)
+        .debug(10)
+        .build();
 
     match builder_result {
         Err(e) => println!("Error in building stream: {e}"),
@@ -44,4 +43,11 @@ async fn main() {
             }
         },
     }
+
+    // TODO: sleep
+    println!("Sleeping for 5 seconds ...");
+    sleep(Duration::from_secs(5));
+
+    // TODO: Update
+    // TODO: List
 }

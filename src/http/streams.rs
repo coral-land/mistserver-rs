@@ -69,14 +69,34 @@ impl StreamsApi {
     }
 
     /// Create one single stream
+    /// This will update if the stream with same name exists based on the mist server api
     ///
     /// # Returns
     /// A `Result` containing the `StreamAddResponse` with details of the created streams.
-    pub async fn create_one(&self, stream: Stream) -> Result<StreamsEndpointResponse> {
+    pub async fn add_stream(&self, stream: Stream) -> Result<StreamsEndpointResponse> {
         let mut streams_create_map = HashMap::new();
         streams_create_map.insert(stream.name.clone(), stream);
 
         let response = self.create(streams_create_map).await?;
+        if response.streams.len() <= 0 {
+            return Err(MistError::Api {
+                message: "No streams returned in response, something broken".into(),
+            });
+        }
+
+        Ok(response)
+    }
+
+    /// Creates many streams with your options
+    /// This will update the stream with same name if exists.
+    ///
+    /// # Returns
+    /// A `Result` containing the StreamAddResponse with details of created stream.
+    pub async fn add_many_stream(
+        &self,
+        streams: HashMap<String, Stream>,
+    ) -> Result<StreamsEndpointResponse> {
+        let response = self.create(streams).await?;
         if response.streams.len() <= 0 {
             return Err(MistError::Api {
                 message: "No streams returned in response, something broken".into(),
