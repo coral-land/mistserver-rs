@@ -26,10 +26,11 @@ async fn main() {
     }
 
     let builder_result = StreamBuilder::new(
-        "random_invalid_streamName@@#$R(%*YHG(*#GH@((*^",
-        "push://google.com",
+        "stream_some",
+        "https://st1101.gapfilm.ir/s/2026/1/6971f6b03fb44d894fd9ea70/c_x264_1280.mp4/chunk.m3u8?mk=tv8lwyGF_egMa2LZctI1Ww&si=786c6d55-3074-4297-b673-9d145e361da7&sc=GF_WEBSITE&app=Web&ts=Gapfilm",
     )
-    .always_on(false)
+    .always_on(true)
+    .debug(10)
     .build();
 
     match builder_result {

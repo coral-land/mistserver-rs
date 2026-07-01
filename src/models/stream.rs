@@ -10,7 +10,6 @@ use crate::{MistError, Result};
 ///
 /// All other fields are optional; the server uses defaults when omitted.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Stream {
     /// **Required.** The source of the media.
     ///
@@ -194,7 +193,7 @@ mod tests {
         extra.insert("segment_size".to_string(), json!(6000));
 
         let stream = StreamBuilder::new("name", "dtsc://1.2.3.4/video")
-            .name("ignored") // this field is not used in the final Stream
+            .name("ignored")
             .always_on(true)
             .buffer_time(30000)
             .debug(4)
@@ -361,7 +360,6 @@ mod tests {
         assert_eq!(stream.buffer_time, Some(60000));
         assert_eq!(stream.debug, Some(5));
         assert_eq!(stream.fallback_stream, Some("backup".to_string()));
-        // The "customOption" should have been put into extra because of the `#[serde(flatten)]`
         assert!(stream.extra.is_some());
         let extra = stream.extra.unwrap();
         assert_eq!(extra["customOption"], "anything");
@@ -394,7 +392,6 @@ mod tests {
         assert_eq!(deserialized.buffer_time, original.buffer_time);
         assert_eq!(deserialized.debug, original.debug);
         assert_eq!(deserialized.fallback_stream, original.fallback_stream);
-        // Extra should round‑trip as well
         let original_extra = original.extra.unwrap();
         let deserialized_extra = deserialized.extra.unwrap();
         assert_eq!(deserialized_extra, original_extra);

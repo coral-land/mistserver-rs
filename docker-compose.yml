@@ -1,11 +1,14 @@
 services:
   mistserver:
-    image: ddvtech/mistserver
+    user: "0"
+    image: ddvtech/mistserver:3.10
     container_name: mistserver
     command: ["MistController"]
     volumes:
       - ./.mist/config.json:/config.json
       - ./.video:/video
+    shm_size: 2gb
+
     ports:
       - "8080:8080"
       - "4242:4242"
