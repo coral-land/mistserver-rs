@@ -63,9 +63,6 @@ impl MistApi {
 
         let json_value: serde_json::Value = serde_json::from_str(&response_text)?;
         let to_string = serde_json::to_string_pretty(&json_value)?;
-
-        println!("{}", to_string);
-
         if let Some(error_msg) = json_value["error"].as_str() {
             return Err(MistError::Api {
                 message: error_msg.into(),

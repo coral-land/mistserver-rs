@@ -19,12 +19,7 @@ pub struct StreamAddCommand {
 /// - An array of stream names.
 /// - A more complex object (hash map) for advanced deletion criteria.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum DeleteStreamCommand {
-    /// Delete a single stream by name.
-    Single(String),
-    /// Delete multiple streams by their names.
-    Array(Vec<String>),
-    /// Delete streams using a complex object (e.g., with filters).
-    Complex(HashMap<String, serde_json::Value>),
+pub struct DeleteStreamCommand {
+    // Stream name list
+    pub deletestream: Vec<String>,
 }

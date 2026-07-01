@@ -5,10 +5,13 @@
 //! and the controller that interacts with the API.
 
 use crate::{
-    MistError, Result, StreamInfo, commands::streams::StreamAddCommand, http::MistApi,
+    MistError, Result, StreamInfo,
+    commands::streams::{DeleteStreamCommand, StreamAddCommand},
+    http::MistApi,
     models::Stream,
 };
 use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 use std::{collections::HashMap, sync::Arc};
 
 /// Response received after successfully adding streams.
@@ -33,7 +36,6 @@ where
     let mut result = HashMap::new();
     for (key, value) in raw {
         if key == "incomplete list" {
-            // skip the marker
             continue;
         }
         let info: StreamInfo = serde_json::from_value(value).map_err(Error::custom)?;
@@ -105,6 +107,16 @@ impl StreamsApi {
 
         Ok(response)
     }
+
+    pub async fn delete_stream(&self, names: Vec<String>) -> Result<()> {
+        let command = DeleteStreamCommand {
+            deletestream: names,
+        };
+
+        let response: HashMap<String, Value> = self.transport.send(command).await?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -138,7 +150,6 @@ mod tests {
             .with_body(response.to_string())
             .create();
 
-        // keep server alive
         let url = format!("{}/api", server.url());
         std::mem::forget(server);
 
@@ -225,5 +236,26 @@ mod tests {
         let response = api.add_many_stream(streams).await.unwrap();
 
         assert_eq!(response.streams.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn delete_stream_success() {
+        let mut server = Server::new_async().await;
+
+        server
+            .mock("GET", "/api")
+            .match_query(Matcher::Any)
+            .with_status(200)
+            .with_body("null")
+            .create();
+
+        let api = StreamsApi::new(Arc::new(MistApi::new(
+            format!("{}/api", server.url()),
+            client(),
+        )));
+
+        api.delete_stream(vec!["cam1".to_string(), "cam2".to_string()])
+            .await
+            .unwrap();
     }
 }
