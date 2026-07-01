@@ -113,7 +113,7 @@ impl StreamsApi {
             deletestream: names,
         };
 
-        let response: HashMap<String, Value> = self.transport.send(command).await?;
+        let response: Option<HashMap<String, Value>> = self.transport.send(command).await?;
 
         Ok(())
     }
