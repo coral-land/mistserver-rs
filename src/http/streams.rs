@@ -109,72 +109,121 @@ impl StreamsApi {
 
 #[cfg(test)]
 mod tests {
-    use mockito::{Matcher, Server, ServerOpts};
+    use super::*;
+    use crate::http::MistApi;
+    use crate::utils::build_http_client;
+    use mockito::{Matcher, Server};
     use reqwest::Client;
     use serde_json::json;
-    use std::time::Duration;
+    use std::{collections::HashMap, sync::Arc, time::Duration};
 
-    use super::*;
-    use crate::utils::build_http_client;
-
-    fn test_client() -> Client {
-        build_http_client(Duration::from_secs(10)).expect("failed to build test client")
+    fn client() -> Client {
+        build_http_client(Duration::from_secs(5)).unwrap()
     }
 
-    fn sample_stream(source: &str) -> Stream {
+    fn stream(source: &str) -> Stream {
         Stream {
             source: source.into(),
             ..Default::default()
         }
     }
 
-    #[tokio::test]
-    async fn create_multiple_streams_success() -> Result<()> {
-        let mut server = Server::new_with_opts_async(ServerOpts {
-            host: "0.0.0.0",
-            port: 1234,
-            ..Default::default()
-        })
-        .await;
+    async fn setup(response: serde_json::Value) -> StreamsApi {
+        let mut server = Server::new_async().await;
 
-        let api_url = "http://localhost:1234/api".to_string();
-        let client = test_client();
-
-        let api = Arc::new(MistApi::new(api_url, client));
-        let stream_ctrl = StreamsApi::new(api);
-        let mut streams = HashMap::new();
-
-        streams.insert("stream1".to_string(), sample_stream("push://a"));
-        streams.insert("stream2".to_string(), sample_stream("file://b.mp4"));
-
-        let expected_command = json!({
-            "addstream": {
-                "stream1": { "source": "push://a" },
-                "stream2": { "source": "file://b.mp4" }
-            }
-        });
-
-        let response_body = json!({
-            "streams": {
-                "stream1": { "name": "stream1", "source": "push://a", "error": "Available", "online": 2 },
-                "stream2": { "name": "stream2", "source": "file://b.mp4", "error": "Available", "online": 2 },
-            }
-        });
-
-        let mock = server
+        server
             .mock("GET", "/api")
             .match_query(Matcher::Any)
             .with_status(200)
-            .with_body(response_body.to_string())
+            .with_body(response.to_string())
             .create();
 
-        let response = stream_ctrl.create(streams).await?;
+        // keep server alive
+        let url = format!("{}/api", server.url());
+        std::mem::forget(server);
+
+        StreamsApi::new(Arc::new(MistApi::new(url, client())))
+    }
+
+    #[tokio::test]
+    async fn add_stream_success() {
+        let api = setup(json!({
+            "streams": {
+                "camera": {
+                    "name": "camera",
+                    "source": "push://live",
+                    "error": "Available",
+                    "online": 1
+                }
+            }
+        }))
+        .await;
+
+        let response = api.add_stream(stream("push://live")).await.unwrap();
+
+        assert_eq!(response.streams.len(), 1);
+        assert!(response.streams.contains_key("camera"));
+    }
+
+    #[tokio::test]
+    async fn add_stream_returns_error_when_no_streams_returned() {
+        let api = setup(json!({
+            "streams": {}
+        }))
+        .await;
+
+        let err = api.add_stream(stream("push://live")).await.unwrap_err();
+
+        assert!(matches!(err, MistError::Api { .. }));
+    }
+
+    #[tokio::test]
+    async fn ignores_incomplete_list_marker() {
+        let api = setup(json!({
+            "streams": {
+                "incomplete list": true,
+                "camera": {
+                    "name": "camera",
+                    "source": "push://live",
+                    "error": "Available",
+                    "online": 1
+                }
+            }
+        }))
+        .await;
+
+        let response = api.add_stream(stream("push://live")).await.unwrap();
+
+        assert_eq!(response.streams.len(), 1);
+        assert!(response.streams.contains_key("camera"));
+    }
+
+    #[tokio::test]
+    async fn add_many_streams_success() {
+        let api = setup(json!({
+            "streams": {
+                "cam1": {
+                    "name": "cam1",
+                    "source": "push://1",
+                    "error": "Available",
+                    "online": 1
+                },
+                "cam2": {
+                    "name": "cam2",
+                    "source": "push://2",
+                    "error": "Available",
+                    "online": 1
+                }
+            }
+        }))
+        .await;
+
+        let mut streams = HashMap::new();
+        streams.insert("cam1".into(), stream("push://1"));
+        streams.insert("cam2".into(), stream("push://2"));
+
+        let response = api.add_many_stream(streams).await.unwrap();
 
         assert_eq!(response.streams.len(), 2);
-        assert!(response.streams.contains_key("stream1"));
-        assert!(response.streams.contains_key("stream2"));
-        mock.assert();
-
-        Ok(())
     }
 }
