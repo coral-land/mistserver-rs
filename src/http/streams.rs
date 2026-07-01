@@ -108,6 +108,11 @@ impl StreamsApi {
         Ok(response)
     }
 
+    /// Deletes one or more streams by their names.
+    ///
+    /// # Returns
+    /// A `Result` indicating success or failure of the delete operation.
+    /// You will get Ok() if the delete operation was successful, or an error if it failed.
     pub async fn delete_stream(&self, names: Vec<String>) -> Result<()> {
         let command = DeleteStreamCommand {
             deletestream: names,
