@@ -10,6 +10,7 @@ use crate::{MistError, Result};
 ///
 /// All other fields are optional; the server uses defaults when omitted.
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Stream {
     /// **Required.** The source of the media.
     ///
