@@ -6,7 +6,7 @@
 
 use crate::{
     MistError, Result,
-    commands::streams::{DeleteStreamCommand, StreamAddCommand, StreamAddResponseCommand},
+    commands::streams::{DeleteStreamCommand, StreamAddCommand, StreamAddCommandResponse},
     http::MistApi,
     models::Stream,
 };
@@ -33,7 +33,7 @@ impl StreamsApi {
     ///
     /// # Returns
     /// A `Result` containing the `StreamAddResponse` with details of the created streams.
-    async fn create(&self, streams: HashMap<String, Stream>) -> Result<StreamAddResponseCommand> {
+    async fn create(&self, streams: HashMap<String, Stream>) -> Result<StreamAddCommandResponse> {
         let command = StreamAddCommand { addstream: streams };
         let response = self.transport.send(command).await?;
         Ok(response)
@@ -44,7 +44,7 @@ impl StreamsApi {
     ///
     /// # Returns
     /// A `Result` containing the `StreamAddResponse` with details of the created streams.
-    pub async fn add_stream(&self, stream: Stream) -> Result<StreamAddResponseCommand> {
+    pub async fn add_stream(&self, stream: Stream) -> Result<StreamAddCommandResponse> {
         let mut streams_create_map = HashMap::new();
         streams_create_map.insert(stream.name.clone(), stream);
 
@@ -66,7 +66,7 @@ impl StreamsApi {
     pub async fn add_many_stream(
         &self,
         streams: HashMap<String, Stream>,
-    ) -> Result<StreamAddResponseCommand> {
+    ) -> Result<StreamAddCommandResponse> {
         let response = self.create(streams).await?;
         if response.streams.is_empty() {
             return Err(MistError::Api {

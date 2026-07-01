@@ -26,20 +26,21 @@ impl StreamAddCommand {
     }
 }
 
+/// Implementation of MistCommand
+impl MistCommand for StreamAddCommand {
+    type Response = StreamAddCommandResponse;
+    const NAME: &'static str = "addstream";
+}
+
 /// Response received after successfully adding streams.
 ///
 /// Contains a map of stream names to their detailed information as returned
 /// by the API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StreamAddResponseCommand {
+pub struct StreamAddCommandResponse {
     /// Map of stream names to their `StreamInfo` details.
     #[serde(deserialize_with = "deserialize_streams_map")]
     pub streams: HashMap<String, StreamInfo>,
-}
-
-impl MistCommand for StreamAddCommand {
-    type Response = ();
-    const NAME: &'static str = "addstream";
 }
 
 /// Command for deleting one or more streams.
