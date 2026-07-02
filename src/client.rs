@@ -21,10 +21,9 @@ use std::sync::Arc;
 use crate::{
     Result,
     commands::traits::MistCommand,
-    http::{AuthResult, MistApi, MistApiBuilder, MistAuthController, StreamsApi},
+    http::{AuthResult, MistApi, MistApiBuilder, MistAuthController, StreamController},
 };
 use reqwest::Client;
-use serde::{Serialize, de::DeserializeOwned};
 
 /// A client for interacting with the Mist API.
 ///
@@ -82,8 +81,8 @@ impl MistClient {
     /// let streams = client.streams().await;
     /// // streams.create(...).await?;
     /// ```
-    pub fn streams(&self) -> StreamsApi {
-        StreamsApi::new(self.transport.clone())
+    pub fn streams(&self) -> StreamController {
+        StreamController::new(self)
     }
 
     /// Returns `true` if authentication credentials have been set.
@@ -98,6 +97,7 @@ impl MistClient {
 
     /// Executes the command every command will use this
     pub(crate) async fn execute<C: MistCommand>(&self, command: C) -> Result<C::Response> {
+        tracing::info!(command = C::NAME, "Executing Mist API command");
         self.transport.send(command).await
     }
 }
