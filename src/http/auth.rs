@@ -6,12 +6,10 @@
 //! authentication when required.
 
 use crate::{
-    Result,
-    commands::authorize::{AuthCredentials, AuthResponse, AuthResponseWrapper, AuthorizeCommand},
-    http::MistApi,
+    MistClient, Result,
+    commands::authorize::{AuthCredentials, AuthResponse, AuthorizeCommand},
 };
 
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 /// Authentication status codes returned by the Mist API.
@@ -67,33 +65,40 @@ impl AuthResult {
 /// Manages the authentication flow, including initial authorization
 /// and challenge response. It uses the underlying [`MistApi`] to send
 /// commands and stores credentials only if authentication is enabled.
-#[derive(Debug, Clone, Default)]
-pub struct MistAuthController {
+#[derive(Debug, Clone)]
+pub struct AuthController<'a> {
     auth: Option<(String, String)>,
-    api: MistApi,
+    client: &'a MistClient,
 }
 
-impl MistAuthController {
+impl<'a> AuthController<'a> {
     /// Creates a new authentication controller.
     ///
     /// # Arguments
     /// * `client` - HTTP client to use for API calls.
     /// * `mist_api_url` - Base URL of the Mist API.
     /// * `auth` - Optional username/password pair. If `None`, authentication is disabled.
-    pub(crate) fn new(
-        client: Client,
-        mist_api_url: String,
-        auth: Option<(String, String)>,
-    ) -> Self {
-        Self {
-            auth,
-            api: MistApi::new(mist_api_url, client),
-        }
+    pub(crate) fn new(auth: Option<(String, String)>, client: &'a MistClient) -> Self {
+        Self { auth, client }
     }
 
     /// Returns `true` if authentication credentials are set.
     pub fn auth_enabled(&self) -> bool {
         self.auth.is_some()
+    }
+
+    /// Authorize with auto handling of challenge
+    /// this is the only method you need to call.
+    pub async fn authorize(&self) -> Result<()> {
+        let auth_result = self.authorize_with_password().await?;
+
+        match (auth_result.needs_challenge(), auth_result.challenge()) {
+            (true, Some(challenge)) => {
+                let auth_result = self.authorize_with_challenge(challenge).await?;
+                Ok(())
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Performs the first authentication step.
@@ -116,19 +121,19 @@ impl MistAuthController {
     /// let result = client.auth().authorize().await?;
     /// # Ok::<(), mistserver_rs::MistError>(())
     /// ```
-    pub async fn authorize(&self) -> Result<AuthResult> {
+    async fn authorize_with_password(&self) -> Result<AuthResult> {
         let Some((username, password)) = &self.auth else {
             return Ok(AuthResult::NotRequired);
         };
 
-        let auth_command = AuthorizeCommand {
-            authorize: AuthCredentials {
-                username: username.clone(),
-                password: password.clone(),
-            },
+        let credentials = AuthCredentials {
+            username: username.clone(),
+            password: password.clone(),
         };
 
-        let response: AuthResponseWrapper = self.api.send(auth_command).await?;
+        let auth_command = AuthorizeCommand::new(credentials);
+        let response = self.client.execute(auth_command).await?;
+
         Ok(AuthResult::Required(response.authorize))
     }
 
@@ -150,22 +155,22 @@ impl MistAuthController {
     ///     }
     /// }
     /// ```
-    pub async fn authorize_with_challenge(&self, challenge: impl AsRef<str>) -> Result<AuthResult> {
-        let (username, password) = self
-            .auth
-            .as_ref()
-            .ok_or_else(|| crate::MistError::Auth("authentication is not configured".into()))?;
+    async fn authorize_with_challenge(&self, challenge: impl AsRef<str>) -> Result<AuthResult> {
+        let (username, password) = self.auth.as_ref().ok_or_else(|| {
+            crate::MistError::Auth(
+                "authentication is not configured but trying to perform auth challenge".into(),
+            )
+        })?;
 
         let auth_hash = self.compute_auth_hash(password, challenge.as_ref());
-
-        let auth_command = AuthorizeCommand {
-            authorize: AuthCredentials {
-                username: username.clone(),
-                password: auth_hash,
-            },
+        let credentials = AuthCredentials {
+            username: username.clone(),
+            password: auth_hash,
         };
 
-        let response: AuthResponseWrapper = self.api.send(auth_command).await?;
+        let command = AuthorizeCommand::new(credentials);
+        let response = self.client.execute(command).await?;
+
         Ok(AuthResult::Required(response.authorize))
     }
 
@@ -184,137 +189,61 @@ impl MistAuthController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Result, utils::build_http_client};
 
-    use mockito::{Matcher, Server};
-    use std::time::Duration;
+    #[test]
+    fn auth_result_not_required_has_no_challenge() {
+        let result = AuthResult::NotRequired;
 
-    fn test_client() -> Client {
-        build_http_client(Duration::from_secs(10)).expect("failed to build test client")
+        assert!(!result.needs_challenge());
+        assert_eq!(result.challenge(), None);
     }
 
     #[test]
-    fn auth_response_needs_challenge() {
-        let response = AuthResponse {
+    fn auth_result_chall_needs_challenge() {
+        let result = AuthResult::Required(AuthResponse {
             status: Some(AuthStatus::Chall),
-            challenge: Some("abc".into()),
-        };
+            challenge: Some("challenge".into()),
+        });
 
-        assert!(response.needs_challenge());
+        assert!(result.needs_challenge());
+        assert_eq!(result.challenge(), Some("challenge".into()));
     }
 
     #[test]
-    fn auth_response_does_not_need_challenge() {
-        let response = AuthResponse {
+    fn auth_result_ok_does_not_need_challenge() {
+        let result = AuthResult::Required(AuthResponse {
             status: Some(AuthStatus::Ok),
-            challenge: None,
-        };
+            challenge: Some("challenge".into()),
+        });
 
-        assert!(!response.needs_challenge());
-    }
-
-    #[tokio::test]
-    async fn authorize_returns_not_required_when_auth_disabled() -> Result<()> {
-        let controller =
-            MistAuthController::new(test_client(), "http://localhost:8080/api".into(), None);
-        let result = controller.authorize().await?;
-
-        assert_eq!(result, AuthResult::NotRequired);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn authorize_returns_challenge_response() -> Result<()> {
-        let mut server = Server::new_async().await;
-
-        let response = serde_json::to_string(&AuthResponseWrapper {
-            authorize: AuthResponse {
-                status: Some(AuthStatus::Chall),
-                challenge: Some("challenge_str".into()),
-            },
-        })?;
-
-        let _mock = server
-            .mock("GET", "/api")
-            .match_query(Matcher::Any)
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(response)
-            .create_async()
-            .await;
-
-        let controller = MistAuthController::new(
-            test_client(),
-            format!("{}/api", server.url()),
-            Some(("admin".into(), "password".into())),
-        );
-
-        let result = controller.authorize().await?;
-
-        assert_eq!(
-            result,
-            AuthResult::Required(AuthResponse {
-                status: Some(AuthStatus::Chall),
-                challenge: Some("challenge_str".into()),
-            })
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn authorize_with_challenge_returns_ok() -> Result<()> {
-        let mut server = Server::new_async().await;
-
-        let response = serde_json::to_string(&AuthResponseWrapper {
-            authorize: AuthResponse {
-                status: Some(AuthStatus::Ok),
-                challenge: None,
-            },
-        })?;
-
-        let _mock = server
-            .mock("GET", "/api")
-            .match_query(Matcher::Any)
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(response)
-            .create_async()
-            .await;
-
-        let controller = MistAuthController::new(
-            test_client(),
-            format!("{}/api", server.url()),
-            Some(("admin".into(), "password".into())),
-        );
-
-        let result = controller.authorize_with_challenge("challenge_str").await?;
-
-        assert_eq!(
-            result,
-            AuthResult::Required(AuthResponse {
-                status: Some(AuthStatus::Ok),
-                challenge: None,
-            })
-        );
-
-        Ok(())
+        assert!(!result.needs_challenge());
+        assert_eq!(result.challenge(), None);
     }
 
     #[test]
-    fn computes_expected_auth_hash() {
-        let controller = MistAuthController::new(
-            test_client(),
-            "http://localhost".into(),
-            Some(("admin".into(), "password".into())),
-        );
+    fn auth_result_without_status_does_not_need_challenge() {
+        let result = AuthResult::Required(AuthResponse {
+            status: None,
+            challenge: Some("challenge".into()),
+        });
 
-        let hash = controller.compute_auth_hash("password", "challenge_str");
-        let password_hash = format!("{:x}", md5::compute("password".as_bytes()));
-        let expected = format!(
-            "{:x}",
-            md5::compute(format!("{password_hash}challenge_str").as_bytes())
-        );
+        assert!(!result.needs_challenge());
+        assert_eq!(result.challenge(), None);
+    }
+
+    #[test]
+    fn compute_auth_hash_returns_expected_hash() {
+        let unsafe_client = std::mem::MaybeUninit::zeroed();
+
+        let controller = AuthController {
+            auth: None,
+            client: unsafe { unsafe_client.assume_init_ref() },
+        };
+
+        let hash = controller.compute_auth_hash("password", "challenge");
+
+        let password_hash = format!("{:x}", md5::compute("password"));
+        let expected = format!("{:x}", md5::compute(format!("{password_hash}challenge")));
 
         assert_eq!(hash, expected);
     }

@@ -53,9 +53,6 @@ impl MistApi {
 
         let response = self.client.get(request_url).send().await?;
         let response_text = response.text().await?;
-
-        tracing::info!(response_text);
-
         let json_value: serde_json::Value = serde_json::from_str(&response_text)?;
         let to_string = serde_json::to_string_pretty(&json_value)?;
         if let Some(error_msg) = json_value["error"].as_str() {
@@ -244,7 +241,6 @@ mod tests {
 
         let api = MistApi::new(server.url(), Client::new());
         let result: Result<TestResponse> = api.send(command).await;
-
         assert!(result.is_err());
         _mock.assert_async().await;
     }

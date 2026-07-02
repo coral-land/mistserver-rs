@@ -21,7 +21,7 @@ use std::sync::Arc;
 use crate::{
     Result,
     commands::traits::MistCommand,
-    http::{AuthResult, MistApi, MistApiBuilder, MistAuthController, StreamController},
+    http::{AuthController, AuthResult, MistApi, MistApiBuilder, StreamController},
 };
 use reqwest::Client;
 
@@ -36,8 +36,6 @@ use reqwest::Client;
 pub struct MistClient {
     /// Optional plain‑text authentication credentials (username, password).
     pub(crate) auth: Option<(String, String)>,
-    /// Controller that handles the challenge‑response authentication flow.
-    pub(crate) auth_controller: Option<MistAuthController>,
     /// The result of the last authentication attempt (if any).
     pub(crate) auth_result: Option<AuthResult>,
     /// Shared API client that executes HTTP requests.
@@ -45,30 +43,14 @@ pub struct MistClient {
 }
 
 impl MistClient {
-    /// Performs the authentication handshake if credentials are set.
-    ///
-    /// This must be called before any other API request if the server requires
-    /// authentication. It stores the authentication result internally.
+    /// Returns auth controller witch you can use to authenticate
+    /// before any other request if needed.
+    /// Authorization needs to be performed only once.
     ///
     /// # Returns
-    /// - `Ok(())` on success, or if no credentials were provided.
-    /// - `Err` if authentication fails.
-    pub async fn authorize(&mut self) -> Result<()> {
-        let Some(controller) = &self.auth_controller else {
-            return Ok(());
-        };
-
-        let auth_result = controller.authorize().await?;
-
-        match (auth_result.needs_challenge(), auth_result.challenge()) {
-            (true, Some(challenge)) => {
-                let auth_result = controller.authorize_with_challenge(challenge).await?;
-                self.auth_result = Some(auth_result);
-
-                Ok(())
-            }
-            _ => Ok(()),
-        }
+    /// - An instance of `AuthController`.
+    pub fn auth(&self) -> AuthController<'_> {
+        AuthController::new(self.auth.clone(), self)
     }
 
     /// Returns a `StreamsController` for managing streams.
@@ -81,7 +63,7 @@ impl MistClient {
     /// let streams = client.streams().await;
     /// // streams.create(...).await?;
     /// ```
-    pub fn streams(&self) -> StreamController {
+    pub fn streams(&self) -> StreamController<'_> {
         StreamController::new(self)
     }
 
@@ -162,10 +144,6 @@ impl MistClientBuilder {
         let auth = self.auth;
         let client = self.client;
 
-        let auth_controller = auth.as_ref().map(|_| {
-            MistAuthController::new(client.clone(), self.mist_api_url.clone(), auth.clone())
-        });
-
         let api = Arc::new(
             MistApiBuilder::new()
                 .with_client(client.clone())
@@ -174,9 +152,8 @@ impl MistClientBuilder {
         );
 
         MistClient {
-            transport: api,
-            auth_controller,
             auth,
+            transport: api,
             auth_result: None,
         }
     }

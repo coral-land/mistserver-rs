@@ -27,6 +27,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Authorize with better error handling
     mist_client
+        .auth()
         .authorize()
         .await
         .map_err(|e| anyhow::anyhow!("Authorization failed: {}", e))?;
