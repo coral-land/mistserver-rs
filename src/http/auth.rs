@@ -7,38 +7,12 @@
 
 use crate::{
     Result,
-    commands::authorize::{AuthCredentials, AuthorizeCommand},
+    commands::authorize::{AuthCredentials, AuthResponse, AuthResponseWrapper, AuthorizeCommand},
     http::MistApi,
 };
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-
-/// Response from an authentication request.
-///
-/// Contains the authentication status and an optional challenge string
-/// that must be used for completing the authentication if the status is `Chall`.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub struct AuthResponse {
-    /// Status of the authentication attempt.
-    pub status: Option<AuthStatus>,
-    /// Challenge string for completing authentication, if required.
-    pub challenge: Option<String>,
-}
-
-impl AuthResponse {
-    /// Returns `true` if the response indicates a challenge is required.
-    pub fn needs_challenge(&self) -> bool {
-        matches!(self.status, Some(AuthStatus::Chall))
-    }
-}
-
-/// Wrapper for the authentication response as returned by the Mist API.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct AuthResponseWrapper {
-    /// The actual authentication response inside the `authorize` field.
-    pub authorize: AuthResponse,
-}
 
 /// Authentication status codes returned by the Mist API.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
