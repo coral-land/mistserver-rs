@@ -40,21 +40,21 @@ pub enum AuthResult {
 
 impl AuthResult {
     pub fn needs_challenge(&self) -> bool {
-        match self {
-            AuthResult::Required(AuthResponse { status, challenge }) => match status {
-                Some(AuthStatus::Chall) => true,
-                _ => false,
-            },
-            _ => false,
-        }
+        matches!(
+            self,
+            AuthResult::Required(AuthResponse {
+                status: Some(AuthStatus::Chall),
+                ..
+            })
+        )
     }
 
     pub fn challenge(&self) -> Option<String> {
         match self {
-            AuthResult::Required(AuthResponse { status, challenge }) => match status {
-                Some(AuthStatus::Chall) => challenge.clone(),
-                _ => None,
-            },
+            AuthResult::Required(AuthResponse {
+                status: Some(AuthStatus::Chall),
+                challenge,
+            }) => challenge.clone(),
             _ => None,
         }
     }
