@@ -27,6 +27,21 @@ impl StreamAddCommand {
     }
 }
 
+impl From<HashMap<String, Stream>> for StreamAddCommand {
+    fn from(value: HashMap<String, Stream>) -> Self {
+        Self::new(value)
+    }
+}
+
+impl From<Stream> for StreamAddCommand {
+    fn from(value: Stream) -> Self {
+        let mut hashmap = HashMap::new();
+        hashmap.insert(value.name.clone(), value);
+
+        Self::new(hashmap)
+    }
+}
+
 /// Implementation of MistCommand
 impl MistCommand for StreamAddCommand {
     type Response = StreamAddCommandResponse;

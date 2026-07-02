@@ -5,9 +5,8 @@
 //! the responses. It uses HTTP GET requests with a `command` query
 //! parameter containing the JSON‑encoded command.
 
-use crate::{MistError, Result};
+use crate::{MistError, Result, commands::traits::MistCommand};
 use reqwest::Client;
-use serde::{Serialize, de::DeserializeOwned};
 use url::Url;
 
 /// Low‑level API client for the Mist server.
@@ -42,11 +41,7 @@ impl MistApi {
     ///
     /// # Returns
     /// A `Result` containing the deserialized response of type `T`.
-    pub(crate) async fn send<T, C>(&self, command: C) -> Result<T>
-    where
-        T: Send + Sync + DeserializeOwned,
-        C: Send + Sync + Serialize,
-    {
+    pub(crate) async fn send<C: MistCommand>(&self, command: C) -> Result<C::Response> {
         let mut request_url = Url::parse(&self.api_url)?;
         let command = serde_json::to_string(&command)?;
 
@@ -58,9 +53,6 @@ impl MistApi {
 
         let response = self.client.get(request_url).send().await?;
         let response_text = response.text().await?;
-
-        tracing::info!(response_text);
-
         let json_value: serde_json::Value = serde_json::from_str(&response_text)?;
         let to_string = serde_json::to_string_pretty(&json_value)?;
         if let Some(error_msg) = json_value["error"].as_str() {
@@ -149,6 +141,11 @@ mod tests {
     #[derive(Debug, Serialize, PartialEq)]
     struct TestCommand {
         key: String,
+    }
+
+    impl MistCommand for TestCommand {
+        type Response = TestResponse;
+        const NAME: &'static str = "testcommand";
     }
 
     #[derive(Debug, Deserialize, Serialize, PartialEq)]
@@ -244,7 +241,6 @@ mod tests {
 
         let api = MistApi::new(server.url(), Client::new());
         let result: Result<TestResponse> = api.send(command).await;
-
         assert!(result.is_err());
         _mock.assert_async().await;
     }
