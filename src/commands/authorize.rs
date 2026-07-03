@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{commands::traits::MistCommand, http::AuthStatus};
+use crate::{commands::traits::MistCommand, controllers::AuthStatus};
 
 /// Command for authorizing against the Mist server.
 ///

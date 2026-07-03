@@ -1,8 +1,9 @@
 pub(crate) mod client;
 pub(crate) mod commands;
+pub(crate) mod controllers;
 pub(crate) mod error;
-pub(crate) mod http;
 pub(crate) mod models;
+pub(crate) mod transport;
 pub(crate) mod utils;
 
 pub use client::{MistClient, MistClientBuilder};
