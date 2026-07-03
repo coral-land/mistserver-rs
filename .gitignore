@@ -1,6 +1,6 @@
 /target
-/.video
-/.mist
+.video
+.mist
 /.logs
 
 # -- Base
