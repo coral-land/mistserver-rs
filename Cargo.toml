@@ -1,6 +1,6 @@
 [package]
 name = "mistserver-rs"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
@@ -24,7 +24,7 @@ tracing-subscriber = "0.3"
 [features]
 testing = []
 
-# --- Development phase only 
+# --- Development phase only
 
 [lints.rust]
 unused_variables = "allow"
