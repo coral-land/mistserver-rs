@@ -15,12 +15,12 @@ use url::Url;
 /// method that serializes a command, sends it as a GET request with the
 /// `command` query parameter, and deserializes the response.
 #[derive(Debug, Clone, Default)]
-pub struct MistApi {
+pub struct HttpTransport {
     api_url: String,
     client: Client,
 }
 
-impl MistApi {
+impl HttpTransport {
     /// Creates a new `MistApi` instance.
     ///
     /// # Arguments
@@ -41,7 +41,7 @@ impl MistApi {
     ///
     /// # Returns
     /// A `Result` containing the deserialized response of type `T`.
-    pub(crate) async fn send<C: MistCommand>(&self, command: C) -> Result<C::Response> {
+    pub(crate) async fn execute<C: MistCommand>(&self, command: C) -> Result<C::Response> {
         let mut request_url = Url::parse(&self.api_url)?;
         let command = serde_json::to_string(&command)?;
 
@@ -81,20 +81,12 @@ impl MistApi {
 ///     .with_client(Client::new())
 ///     .build();
 /// ```
-pub struct MistApiBuilder {
+pub struct HttpTransportBuilder {
     client: Client,
     url: String,
 }
 
-/// Default implementation for Mist Api Builder
-///
-impl Default for MistApiBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl MistApiBuilder {
+impl HttpTransportBuilder {
     /// Creates a new `ApiBuilder` with default settings.
     ///
     /// Default URL: `http://localhost:4242`
@@ -127,11 +119,18 @@ impl MistApiBuilder {
     }
 
     /// Consumes the builder and returns a configured [`MistApi`].
-    pub fn build(self) -> MistApi {
-        MistApi::new(self.url, self.client)
+    pub fn build(self) -> HttpTransport {
+        HttpTransport::new(self.url, self.client)
     }
 }
 
+/// Default implementation for Mist Api Builder
+///
+impl Default for HttpTransportBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,13 +154,13 @@ mod tests {
 
     #[test]
     fn builder_defaults() {
-        let api = MistApiBuilder::new().build();
+        let api = HttpTransportBuilder::new().build();
         assert_eq!(api.api_url, "http://localhost:4242");
     }
 
     #[test]
     fn builder_with_url() {
-        let api = MistApiBuilder::new()
+        let api = HttpTransportBuilder::new()
             .with_url("https://mist.example.com".into())
             .build();
         assert_eq!(api.api_url, "https://mist.example.com");
@@ -191,8 +190,8 @@ mod tests {
             .create_async()
             .await;
 
-        let api = MistApi::new(server.url(), Client::new());
-        let response: TestResponse = api.send(command).await.unwrap();
+        let api = HttpTransport::new(server.url(), Client::new());
+        let response: TestResponse = api.execute(command).await.unwrap();
 
         assert_eq!(response, expected_response);
         _mock.assert_async().await;
@@ -213,8 +212,8 @@ mod tests {
             .create_async()
             .await;
 
-        let api = MistApi::new(server.url(), Client::new());
-        let result: Result<TestResponse> = api.send(command).await;
+        let api = HttpTransport::new(server.url(), Client::new());
+        let result: Result<TestResponse> = api.execute(command).await;
 
         assert!(result.is_err());
         _mock.assert_async().await;
@@ -239,8 +238,8 @@ mod tests {
             .create_async()
             .await;
 
-        let api = MistApi::new(server.url(), Client::new());
-        let result: Result<TestResponse> = api.send(command).await;
+        let api = HttpTransport::new(server.url(), Client::new());
+        let result: Result<TestResponse> = api.execute(command).await;
         assert!(result.is_err());
         _mock.assert_async().await;
     }

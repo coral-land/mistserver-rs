@@ -21,7 +21,8 @@ use std::sync::Arc;
 use crate::{
     Result,
     commands::traits::MistCommand,
-    http::{AuthController, AuthResult, MistApi, MistApiBuilder, StreamController},
+    controllers::{AuthController, AuthResult, StreamController},
+    transport::{HttpTransport, HttpTransportBuilder},
 };
 use reqwest::Client;
 
@@ -39,7 +40,7 @@ pub struct MistClient {
     /// The result of the last authentication attempt (if any).
     pub(crate) auth_result: Option<AuthResult>,
     /// Shared API client that executes HTTP requests.
-    pub(crate) transport: Arc<MistApi>,
+    pub(crate) transport: Arc<HttpTransport>,
 }
 
 impl MistClient {
@@ -80,7 +81,7 @@ impl MistClient {
     /// Executes the command every command will use this
     pub(crate) async fn execute<C: MistCommand>(&self, command: C) -> Result<C::Response> {
         tracing::info!(command = C::NAME, "Executing Mist API command");
-        self.transport.send(command).await
+        self.transport.execute(command).await
     }
 }
 
@@ -145,7 +146,7 @@ impl MistClientBuilder {
         let client = self.client;
 
         let api = Arc::new(
-            MistApiBuilder::new()
+            HttpTransportBuilder::new()
                 .with_client(client.clone())
                 .with_url(self.mist_api_url)
                 .build(),
