@@ -39,6 +39,9 @@ async fn main() -> anyhow::Result<()> {
     // Add multiple streams
     add_multiple_streams(&mut mist_client).await?;
 
+    let list_response = mist_client.streams().list().await?;
+    info!("Current streams: {:?}", list_response.streams);
+
     // Wait for streams to stabilize
     info!("Waiting 5 seconds for streams to initialize...");
     sleep(Duration::from_secs(5)).await;

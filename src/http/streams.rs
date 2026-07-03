@@ -6,9 +6,12 @@
 
 use crate::{
     MistClient, Result,
-    commands::streams::{DeleteStreamCommand, StreamAddCommand, StreamAddCommandResponse},
+    commands::streams::{
+        DeleteStreamCommand, StreamAddCommand, StreamCommandsResponse, StreamListCommand,
+    },
     models::Stream,
 };
+
 use std::collections::HashMap;
 
 /// Controller for managing streams via the Mist API.
@@ -29,7 +32,7 @@ impl<'a> StreamController<'a> {
     ///
     /// # Returns
     /// A `Result` containing the `StreamAddResponse` with details of the created streams.
-    pub async fn add(&self, stream: Stream) -> Result<StreamAddCommandResponse> {
+    pub async fn add(&self, stream: Stream) -> Result<StreamCommandsResponse> {
         let command = StreamAddCommand::from(stream);
         self.client.execute(command).await
     }
@@ -42,8 +45,18 @@ impl<'a> StreamController<'a> {
     pub async fn add_many(
         &self,
         streams: HashMap<String, Stream>,
-    ) -> Result<StreamAddCommandResponse> {
+    ) -> Result<StreamCommandsResponse> {
         let command = StreamAddCommand::from(streams);
+        self.client.execute(command).await
+    }
+
+    /// Get all streams in one go.
+    /// It can not be so effective.
+    ///
+    /// # Returns
+    /// - A `StreamCommandsResponse` containing the streams HashMap.
+    pub async fn list(&self) -> Result<StreamCommandsResponse> {
+        let command = StreamListCommand {};
         self.client.execute(command).await
     }
 

@@ -67,6 +67,13 @@ pub struct StreamInfo {
     /// The configured source URI.
     pub source: String,
 
+    /// Current Debug level only for this stream
+    pub debug: Option<i32>,
+
+    /// Status of always on for this stream
+    #[serde(rename = "alwaysOn")]
+    pub always_on: Option<bool>,
+
     /// Human‑readable status (e.g. `"Available"` for VoD, or an error message).
     pub error: Option<String>,
 

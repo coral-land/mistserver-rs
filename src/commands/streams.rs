@@ -44,8 +44,18 @@ impl From<Stream> for StreamAddCommand {
 
 /// Implementation of MistCommand
 impl MistCommand for StreamAddCommand {
-    type Response = StreamAddCommandResponse;
+    type Response = StreamCommandsResponse;
     const NAME: &'static str = "addstream";
+}
+
+/// Just an empty {} is enough to be sent into the
+/// stream and it will return a big json that contains streams
+#[derive(Serialize, Debug, Clone)]
+pub struct StreamListCommand {}
+
+impl MistCommand for StreamListCommand {
+    type Response = StreamCommandsResponse;
+    const NAME: &'static str = "liststream";
 }
 
 /// Response received after successfully adding streams.
@@ -53,7 +63,7 @@ impl MistCommand for StreamAddCommand {
 /// Contains a map of stream names to their detailed information as returned
 /// by the API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StreamAddCommandResponse {
+pub struct StreamCommandsResponse {
     /// Map of stream names to their `StreamInfo` details.
     #[serde(deserialize_with = "deserialize_streams_map")]
     pub streams: HashMap<String, StreamInfo>,
@@ -199,7 +209,7 @@ mod tests {
             }
         });
 
-        let response: StreamAddCommandResponse = serde_json::from_value(json).unwrap();
+        let response: StreamCommandsResponse = serde_json::from_value(json).unwrap();
 
         assert!(response.streams.contains_key("camera1"));
     }
@@ -210,7 +220,7 @@ mod tests {
             "streams": {}
         });
 
-        let response: StreamAddCommandResponse = serde_json::from_value(json).unwrap();
+        let response: StreamCommandsResponse = serde_json::from_value(json).unwrap();
 
         assert!(response.streams.is_empty());
     }
