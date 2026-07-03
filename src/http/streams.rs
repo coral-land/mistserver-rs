@@ -29,7 +29,7 @@ impl<'a> StreamController<'a> {
     ///
     /// # Returns
     /// A `Result` containing the `StreamAddResponse` with details of the created streams.
-    pub async fn add_stream(&self, stream: Stream) -> Result<StreamAddCommandResponse> {
+    pub async fn add(&self, stream: Stream) -> Result<StreamAddCommandResponse> {
         let command = StreamAddCommand::from(stream);
         self.client.execute(command).await
     }
@@ -39,7 +39,7 @@ impl<'a> StreamController<'a> {
     ///
     /// # Returns
     /// A `Result` containing the StreamAddResponse with details of created stream.
-    pub async fn add_many_stream(
+    pub async fn add_many(
         &self,
         streams: HashMap<String, Stream>,
     ) -> Result<StreamAddCommandResponse> {
@@ -52,7 +52,7 @@ impl<'a> StreamController<'a> {
     /// # Returns
     /// A `Result` indicating success or failure of the delete operation.
     /// You will get Ok() if the delete operation was successful, or an error if it failed.
-    pub async fn delete_stream(&self, names: Vec<String>) -> Result<()> {
+    pub async fn delete(&self, names: Vec<String>) -> Result<()> {
         let command = DeleteStreamCommand::new(names);
         let result = self.client.execute(command).await?;
 

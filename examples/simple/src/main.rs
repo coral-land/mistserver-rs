@@ -1,7 +1,6 @@
-use std::{collections::HashMap, time::Duration};
-
 use mistserver_rs::{MistClient, MistClientBuilder, StreamBuilder};
 use reqwest::Client;
+use std::{collections::HashMap, time::Duration};
 use tokio::time::sleep;
 use tracing::{error, info, warn};
 
@@ -58,7 +57,7 @@ async fn add_single_stream(mist_client: &mut MistClient) -> anyhow::Result<()> {
         .build()
         .map_err(|e| anyhow::anyhow!("Failed to build stream: {}", e))?;
 
-    match mist_client.streams().add_stream(stream).await {
+    match mist_client.streams().add(stream).await {
         Ok(response) => {
             info!("Stream 'stream_some' added successfully: {:?}", response);
             Ok(())
@@ -102,7 +101,7 @@ async fn add_multiple_streams(mist_client: &mut MistClient) -> anyhow::Result<()
 
     info!("Adding {} streams to MistServer...", streams.len());
 
-    match mist_client.streams().add_many_stream(streams).await {
+    match mist_client.streams().add_many(streams).await {
         Ok(response) => {
             info!("Multiple streams added successfully: {:?}", response);
             Ok(())
@@ -119,7 +118,7 @@ async fn cleanup_streams(mist_client: &mut MistClient) -> anyhow::Result<()> {
 
     info!("Cleaning up streams: {:?}", streams_to_delete);
 
-    match mist_client.streams().delete_stream(streams_to_delete).await {
+    match mist_client.streams().delete(streams_to_delete).await {
         Ok(response) => {
             info!("Streams deleted successfully: {:?}", response);
             Ok(())
