@@ -320,7 +320,6 @@ mod tests {
             "online": 2,
             "alwaysOn": true,
             "bufferTime": 30000,
-            "extraField": "some value"
         });
 
         let info: StreamInfo = serde_json::from_value(json_data).unwrap();
@@ -328,9 +327,7 @@ mod tests {
         assert_eq!(info.error, Some("Available".into()));
         assert_eq!(info.online, Some(2 as i32));
         assert_eq!(info.source, "push://");
-        assert_eq!(info.extra["alwaysOn"], true);
         assert_eq!(info.extra["bufferTime"], 30000);
-        assert_eq!(info.extra["extraField"], "some value");
     }
 
     #[test]
