@@ -247,4 +247,103 @@ mod tests {
 
         assert_eq!(hash, expected);
     }
+
+    #[test]
+    fn auth_result_required_without_challenge_returns_none() {
+        let result = AuthResult::Required(AuthResponse {
+            status: Some(AuthStatus::Chall),
+            challenge: None,
+        });
+
+        assert!(result.needs_challenge());
+        assert_eq!(result.challenge(), None);
+    }
+
+    #[test]
+    fn auth_status_serialization() {
+        assert_eq!(serde_json::to_string(&AuthStatus::Ok).unwrap(), "\"OK\"");
+
+        assert_eq!(
+            serde_json::to_string(&AuthStatus::Chall).unwrap(),
+            "\"CHALL\""
+        );
+
+        assert_eq!(
+            serde_json::to_string(&AuthStatus::NoAcc).unwrap(),
+            "\"NOACC\""
+        );
+
+        assert_eq!(
+            serde_json::to_string(&AuthStatus::AccMade).unwrap(),
+            "\"ACCMADE\""
+        );
+    }
+
+    #[test]
+    fn auth_status_deserialization() {
+        assert_eq!(
+            serde_json::from_str::<AuthStatus>("\"OK\"").unwrap(),
+            AuthStatus::Ok
+        );
+
+        assert_eq!(
+            serde_json::from_str::<AuthStatus>("\"CHALL\"").unwrap(),
+            AuthStatus::Chall
+        );
+
+        assert_eq!(
+            serde_json::from_str::<AuthStatus>("\"NOACC\"").unwrap(),
+            AuthStatus::NoAcc
+        );
+
+        assert_eq!(
+            serde_json::from_str::<AuthStatus>("\"ACCMADE\"").unwrap(),
+            AuthStatus::AccMade
+        );
+    }
+
+    #[test]
+    fn compute_auth_hash_is_deterministic() {
+        let unsafe_client = std::mem::MaybeUninit::zeroed();
+
+        let controller = AuthController {
+            auth: None,
+            client: unsafe { unsafe_client.assume_init_ref() },
+        };
+
+        let hash1 = controller.compute_auth_hash("password", "challenge");
+        let hash2 = controller.compute_auth_hash("password", "challenge");
+
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn compute_auth_hash_changes_with_password() {
+        let unsafe_client = std::mem::MaybeUninit::zeroed();
+
+        let controller = AuthController {
+            auth: None,
+            client: unsafe { unsafe_client.assume_init_ref() },
+        };
+
+        let hash1 = controller.compute_auth_hash("password1", "challenge");
+        let hash2 = controller.compute_auth_hash("password2", "challenge");
+
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn compute_auth_hash_changes_with_challenge() {
+        let unsafe_client = std::mem::MaybeUninit::zeroed();
+
+        let controller = AuthController {
+            auth: None,
+            client: unsafe { unsafe_client.assume_init_ref() },
+        };
+
+        let hash1 = controller.compute_auth_hash("password", "challenge1");
+        let hash2 = controller.compute_auth_hash("password", "challenge2");
+
+        assert_ne!(hash1, hash2);
+    }
 }

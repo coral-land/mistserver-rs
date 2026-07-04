@@ -1,8 +1,15 @@
 //! Stream management controller for the Mist API.
 //!
-//! This module provides functionality to manage streams, including creating
-//! and deleting streams via the Mist API. It defines the command structures
-//! and the controller that interacts with the API.
+//! This module provides a high-level, ergonomic interface over the underlying
+//! Mist stream commands. It acts as a thin orchestration layer that:
+//!
+//! - Translates method calls into strongly typed commands
+//! - Delegates execution to the [`MistClient`]
+//! - Returns structured responses defined by the SDK
+//!
+//! The controller itself contains no business logic; it exists purely to
+//! improve usability and reduce direct command construction at call sites.
+
 use crate::{
     MistClient, Result,
     commands::streams::{
@@ -14,34 +21,43 @@ use crate::{
 
 use std::collections::HashMap;
 
-/// Controller for managing streams via the Mist API.
+/// High-level interface for managing streams in the Mist system.
 ///
-/// Provides methods to perform operations on streams such as creating new ones.
+/// Each method corresponds directly to a Mist API command but provides a
+/// simplified and intention-revealing interface.
 pub struct StreamController<'a> {
+    /// Shared API client used to execute Mist commands.
     client: &'a MistClient,
 }
 
 impl<'a> StreamController<'a> {
-    /// Creates a new `StreamsController` with the given API handle.
+    /// Creates a new stream controller bound to the given Mist client.
+    ///
+    /// The controller does not own the client and only borrows it.
     pub fn new(client: &'a MistClient) -> Self {
         Self { client }
     }
 
-    /// Create one single stream
-    /// This will update if the stream with same name exists based on the mist server api
+    /// Creates or updates a single stream.
+    ///
+    /// If a stream with the same name already exists, the Mist server will
+    /// update it according to its internal merge/update rules.
     ///
     /// # Returns
-    /// A `Result` containing the `StreamAddResponse` with details of the created streams.
+    /// The server response containing information about the created or updated
+    /// stream(s).
     pub async fn add(&self, stream: Stream) -> Result<StreamCommandsResponse> {
         let command = AddStreamCommand::from(stream);
         self.client.execute(command).await
     }
 
-    /// Creates many streams with your options
-    /// This will update the stream with same name if exists.
+    /// Creates or updates multiple streams in a single request.
+    ///
+    /// This is more efficient than calling [`add`](Self::add) repeatedly when
+    /// working with batch stream creation or updates.
     ///
     /// # Returns
-    /// A `Result` containing the StreamAddResponse with details of created stream.
+    /// A response containing the created or updated stream definitions.
     pub async fn add_many(
         &self,
         streams: HashMap<String, Stream>,
@@ -50,46 +66,55 @@ impl<'a> StreamController<'a> {
         self.client.execute(command).await
     }
 
-    /// Get all streams in one go.
-    /// It can not be so effective.
+    /// Retrieves all configured streams from the Mist server.
+    ///
+    /// This includes both active and inactive streams, depending on server
+    /// configuration and state.
     ///
     /// # Returns
-    /// - A `StreamCommandsResponse` containing the streams HashMap.
+    /// A map of stream names to their configuration details.
     pub async fn list(&self) -> Result<StreamCommandsResponse> {
         let command = StreamListCommand { streams: () };
         self.client.execute(command).await
     }
 
-    /// List Active Streams with metrics
-    /// This requests a list of streams that are currently active, and only those.
-    /// The list includes any wildcard versions of streams as well as temporary streams that may be active.
+    /// Retrieves real-time statistics for all active streams.
+    ///
+    /// Only streams that are currently active are included in the response.
+    /// Metrics may include viewer counts, bandwidth usage, and health data.
     ///
     /// # Returns
-    /// A response containing the active streams with it's stats
+    /// A structured response containing active stream metrics.
     pub async fn list_active(&self) -> Result<ListActiveStreamsResponse> {
         let command = ListActiveStreamsCommand::new();
         self.client.execute(command).await
     }
 
-    /// Deletes one or more streams by their names.
+    /// Deletes one or more streams by name.
+    ///
+    /// This operation removes the stream configuration from the Mist server.
+    ///
+    /// # Arguments
+    /// * `names` - Names of the streams to delete.
     ///
     /// # Returns
-    /// A `Result` indicating success or failure of the delete operation.
-    /// You will get Ok() if the delete operation was successful, or an error if it failed.
+    /// Returns `Ok(())` if the server accepted the deletion request.
     pub async fn delete(&self, names: Vec<String>) -> Result<()> {
         let command = DeleteStreamCommand::new(names);
-        let result = self.client.execute(command).await?;
-
+        self.client.execute(command).await?;
         Ok(())
     }
 
-    /// This call can shut down a running stream completely and/or clean up any potentially
-    /// left over stream data in memory. It attempts a clean shutdown of the running stream first,
-    /// followed by a forced shut down, and then follows up by checking for left over data in memory
-    /// and cleaning that up if any is found.
+    /// Forcefully removes a stream and cleans up all associated runtime state.
+    ///
+    /// This is a destructive operation that ensures the stream is fully shut
+    /// down and any remaining resources are released by the server.
+    ///
+    /// # Arguments
+    /// * `name` - Name of the stream to remove.
     ///
     /// # Returns
-    /// There is no response for this method
+    /// Returns `Ok(())` if the operation succeeds.
     pub async fn nuke_stream(&self, name: String) -> Result<()> {
         let command = NukeStreamCommand::new(name);
         self.client.execute(command).await
