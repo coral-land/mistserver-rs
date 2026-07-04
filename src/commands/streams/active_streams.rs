@@ -345,13 +345,19 @@ mod tests {
 
         assert_eq!(health.buffer, Some(20));
         assert_eq!(health.jitter, Some(2));
-        assert_eq!(health.tracks.len(), 2);
+        assert_eq!(health.tracks.unwrap().len(), 2);
 
-        assert!(health.tracks_detail.contains_key("video"));
-        assert!(health.tracks_detail.contains_key("audio"));
+        assert!(health.tracks_detail.clone().unwrap().contains_key("video"));
+        assert!(health.tracks_detail.clone().unwrap().contains_key("audio"));
 
-        assert_eq!(health.tracks_detail["video"].codec, "H264");
-        assert_eq!(health.tracks_detail["audio"].codec, "AAC");
+        assert_eq!(
+            health.tracks_detail.clone().unwrap()["video"].codec,
+            Some("H264".into())
+        );
+        assert_eq!(
+            health.tracks_detail.clone().unwrap()["audio"].codec,
+            Some("AAC".into())
+        );
     }
 
     #[test]
@@ -361,7 +367,7 @@ mod tests {
             "buffer": 10,
             "codec": "H264",
             "efpks": 0,
-            "efps": 30,
+            "efps": 30.0,
             "fpks": 0,
             "fps": 30,
             "height": 720,
@@ -381,7 +387,6 @@ mod tests {
         });
 
         let track: TrackInfo = serde_json::from_value(json.clone()).unwrap();
-
         let serialized = serde_json::to_value(track).unwrap();
 
         assert_eq!(serialized, json);
