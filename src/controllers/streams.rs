@@ -14,7 +14,7 @@ use crate::{
     MistClient, Result,
     commands::streams::{
         AddStreamCommand, DeleteStreamCommand, ListActiveStreamsCommand, ListActiveStreamsResponse,
-        NukeStreamCommand, StreamCommandsResponse, StreamListCommand,
+        NukeStreamCommand, StreamCommandsResponse, StreamListCommand, TagStreamCommand, TagValue,
     },
     models::Stream,
 };
@@ -117,6 +117,23 @@ impl<'a> StreamController<'a> {
     /// Returns `Ok(())` if the operation succeeds.
     pub async fn nuke_stream(&self, name: String) -> Result<()> {
         let command = NukeStreamCommand::new(name);
+        self.client.execute(command).await
+    }
+
+    /// This request allows you to set a specific tag on a stream.
+    /// They are not in any way related to session tags. A stream tag
+    /// can be used to automatically start pushes or triggers depending on the tag.
+    /// Which allows you to set up different workflows for streams in the same wildcard group.
+    /// For example only adding recording for "some" of the current live streams.
+    ///
+    pub async fn tag(&self, stream: &str, tags: Vec<&str>) -> Result<()> {
+        // TODO: Add a builder to add tags
+        let tags = TagValue::from(tags);
+        let mut map: HashMap<String, TagValue> = HashMap::new();
+
+        map.insert(stream.into(), tags);
+
+        let command = TagStreamCommand::new(map);
         self.client.execute(command).await
     }
 }

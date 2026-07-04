@@ -10,6 +10,7 @@ pub use addstream::*;
 pub use deletestream::*;
 pub use liststream::*;
 pub use nuke_stream::*;
+pub use tag_stream::*;
 
 use crate::{StreamInfo, commands::shared::deserialize_streams_map};
 

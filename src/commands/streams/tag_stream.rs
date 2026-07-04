@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::commands::traits::MistCommand;
+
 /// Command for assigning tags to one or more streams.
 ///
 /// This command serializes to the `tag_stream` payload expected by the MistServer
@@ -78,6 +80,11 @@ impl TagStreamCommand {
     }
 }
 
+impl MistCommand for TagStreamCommand {
+    type Response = ();
+    const NAME: &'static str = "tag_stream";
+}
+
 /// Tags assigned to a stream.
 ///
 /// A stream can have either a single tag or multiple tags. The
@@ -108,6 +115,13 @@ pub enum TagValue {
 }
 
 impl From<&str> for TagValue {
+    /// Creates a single-tag value from a string slice.
+    fn from(value: &str) -> Self {
+        Self::Single(value.into())
+    }
+}
+
+impl From<Vec<&str>> for TagValue {
     /// Creates a single-tag value from a string slice.
     fn from(value: &str) -> Self {
         Self::Single(value.into())
