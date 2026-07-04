@@ -3,93 +3,11 @@ use std::collections::HashMap;
 
 use crate::commands::traits::MistCommand;
 
-/// Command for assigning tags to one or more streams.
+/// One or more tags assigned to a stream.
 ///
-/// This command serializes to the `tag_stream` payload expected by the MistServer
-/// API. Each stream can be associated with either a single tag or multiple tags.
-///
-/// # JSON representation
-///
-/// ```json
-/// {
-///   "tag_stream": {
-///     "stream1": "live",
-///     "stream2": ["sports", "premium"]
-///   }
-/// }
-/// ```
-///
-/// # Example
-///
-/// ```
-/// # use std::collections::HashMap;
-/// # use your_crate::{TagStreamCommand, TagStreamCommandValue};
-///
-/// let mut streams = HashMap::new();
-///
-/// streams.insert(
-///     "stream1".into(),
-///     TagStreamCommandValue::from("live"),
-/// );
-///
-/// streams.insert(
-///     "stream2".into(),
-///     TagStreamCommandValue::from(vec![
-///         "sports".to_string(),
-///         "premium".to_string(),
-///     ]),
-/// );
-///
-/// let command = TagStreamCommand::new(streams);
-/// ```
-///
-/// # Notes
-///
-/// - Stream names are not validated by this type.
-/// - Empty tag lists are allowed but may be rejected by the server.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TagStreamCommand {
-    tag_stream: HashMap<String, TagValue>,
-}
-
-impl TagStreamCommand {
-    /// Creates a new `TagStreamCommand`.
-    ///
-    /// # Arguments
-    ///
-    /// * `hash_map` - A mapping of stream names to one or more tags.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use std::collections::HashMap;
-    /// # use your_crate::{TagStreamCommand, TagStreamCommandValue};
-    ///
-    /// let command = TagStreamCommand::new(HashMap::from([
-    ///     (
-    ///         "stream".to_string(),
-    ///         TagStreamCommandValue::from("live"),
-    ///     ),
-    /// ]));
-    /// ```
-    #[must_use]
-    pub fn new(hash_map: HashMap<String, TagValue>) -> Self {
-        Self {
-            tag_stream: hash_map,
-        }
-    }
-}
-
-impl MistCommand for TagStreamCommand {
-    type Response = ();
-    const NAME: &'static str = "tag_stream";
-}
-
-/// Tags assigned to a stream.
-///
-/// A stream can have either a single tag or multiple tags. The
-/// `serde(untagged)` attribute allows the enum to serialize directly to the
-/// JSON format expected by the API.
+/// The MistServer API accepts either a single tag or a list of tags. This enum
+/// uses `serde(untagged)` so it serializes directly to the JSON format expected
+/// by the API.
 ///
 /// # JSON representation
 ///
@@ -122,9 +40,9 @@ impl From<&str> for TagValue {
 }
 
 impl From<Vec<&str>> for TagValue {
-    /// Creates a single-tag value from a string slice.
-    fn from(value: &str) -> Self {
-        Self::Single(value.into())
+    /// Creates a multi-tag value from a vector of string slices.
+    fn from(value: Vec<&str>) -> Self {
+        Self::Multiple(value.into_iter().map(String::from).collect())
     }
 }
 
@@ -133,6 +51,102 @@ impl From<Vec<String>> for TagValue {
     fn from(value: Vec<String>) -> Self {
         Self::Multiple(value)
     }
+}
+
+/// Command for assigning tags to one or more streams.
+///
+/// This command serializes to the `tag_stream` payload expected by the
+/// MistServer API.
+///
+/// # JSON representation
+///
+/// ```json
+/// {
+///   "tag_stream": {
+///     "stream1": "live",
+///     "stream2": ["sports", "premium"]
+///   }
+/// }
+/// ```
+///
+/// Each stream is associated with one or more tags through [`TagValue`].
+///
+/// # Example
+///
+/// ```
+/// # use std::collections::HashMap;
+/// # use your_crate::{TagStreamCommand, TagValue};
+///
+/// let command = TagStreamCommand::new(HashMap::from([
+///     (
+///         "stream1".to_string(),
+///         TagValue::from("live"),
+///     ),
+///     (
+///         "stream2".to_string(),
+///         TagValue::from(vec!["sports", "premium"]),
+///     ),
+/// ]));
+/// ```
+///
+/// # Notes
+///
+/// - Stream names are not validated.
+/// - Empty tag lists are allowed but may be rejected by the server.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TagStreamCommand {
+    tag_stream: HashMap<String, TagValue>,
+}
+
+impl TagStreamCommand {
+    /// Creates a new `TagStreamCommand`.
+    ///
+    /// # Arguments
+    ///
+    /// * `hash_map` - Maps stream names to one or more tags.
+    #[must_use]
+    pub fn new(hash_map: HashMap<String, TagValue>) -> Self {
+        Self {
+            tag_stream: hash_map,
+        }
+    }
+}
+
+impl MistCommand for TagStreamCommand {
+    type Response = ();
+
+    const NAME: &'static str = "tag_stream";
+}
+
+/// Command for removing tags from one or more streams.
+///
+/// This command has the same payload format as [`TagStreamCommand`], but removes
+/// tags instead of adding them.
+///
+/// See [`TagStreamCommand`] for the JSON representation and usage examples.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UntagStreamCommand {
+    untag_stream: HashMap<String, TagValue>,
+}
+
+impl UntagStreamCommand {
+    /// Creates a new `UntagStreamCommand`.
+    ///
+    /// # Arguments
+    ///
+    /// * `hash_map` - Maps stream names to the tags that should be removed.
+    #[must_use]
+    pub fn new(hash_map: HashMap<String, TagValue>) -> Self {
+        Self {
+            untag_stream: hash_map,
+        }
+    }
+}
+
+impl MistCommand for UntagStreamCommand {
+    type Response = ();
+
+    const NAME: &'static str = "untag_stream";
 }
 
 #[cfg(test)]
