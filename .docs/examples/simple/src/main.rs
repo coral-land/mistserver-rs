@@ -16,7 +16,6 @@
 //! This example is intended to demonstrate the typical lifecycle of a
 //! long-running application where a single `MistClient` instance is reused
 //! for multiple API requests.
-
 use anyhow::{Context, Result};
 use mistserver_rs::{MistClient, MistClientBuilder, StreamBuilder};
 use reqwest::Client;
@@ -32,7 +31,7 @@ const MIST_USERNAME: &str = "admin";
 const MIST_PASSWORD: &str = "password";
 
 const STREAM_SOURCE_1: &str = "/video/file.mp4";
-const STREAM_SOURCE_2: &str = "/video/other.mp4";
+const STREAM_SOURCE_2: &str = "/video/file.mp4";
 
 #[tokio::main]
 async fn main() -> Result<()> {

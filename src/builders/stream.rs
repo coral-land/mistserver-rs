@@ -116,15 +116,9 @@ impl StreamBuilder {
 
 #[cfg(test)]
 mod tests {
-    // ------------------------------------------------------------------------
-    // Builder tests
-    // ------------------------------------------------------------------------
-
-    use std::collections::HashMap;
-
-    use serde_json::json;
-
     use crate::{Result, StreamBuilder};
+    use serde_json::json;
+    use std::collections::HashMap;
 
     #[test]
     fn builder_defaults() -> Result<()> {

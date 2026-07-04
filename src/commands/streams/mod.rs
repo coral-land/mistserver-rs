@@ -3,6 +3,7 @@ mod addstream;
 mod deletestream;
 mod liststream;
 mod nuke_stream;
+mod tag_stream;
 
 pub use active_streams::*;
 pub use addstream::*;

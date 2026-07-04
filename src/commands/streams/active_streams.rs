@@ -123,9 +123,9 @@ pub struct KeyInfo {
 /// `tracks_detail` using Serde's `flatten` support.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ActiveStreamHealth {
-    pub buffer: i32,
-    pub issues: String,
-    pub jitter: i32,
+    pub buffer: Option<i32>,
+    pub issues: Option<String>,
+    pub jitter: Option<i32>,
     pub tracks: Vec<String>,
 
     #[serde(flatten)]
@@ -343,8 +343,8 @@ mod tests {
 
         let health: ActiveStreamHealth = serde_json::from_value(json).unwrap();
 
-        assert_eq!(health.buffer, 20);
-        assert_eq!(health.jitter, 2);
+        assert_eq!(health.buffer, Some(20));
+        assert_eq!(health.jitter, Some(2));
         assert_eq!(health.tracks.len(), 2);
 
         assert!(health.tracks_detail.contains_key("video"));
@@ -399,7 +399,6 @@ mod tests {
         });
 
         let keys: KeyInfo = serde_json::from_value(json.clone()).unwrap();
-
         let serialized = serde_json::to_value(keys).unwrap();
 
         assert_eq!(serialized, json);
