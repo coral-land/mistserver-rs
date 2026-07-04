@@ -20,7 +20,7 @@ impl NukeStreamCommand {
 }
 
 impl MistCommand for NukeStreamCommand {
-    type Response = ();
+    type Response = Option<serde_json::Value>;
 
     /// Mist API command name.
     const NAME: &'static str = "nuke_stream";

@@ -118,7 +118,9 @@ impl<'a> StreamController<'a> {
     /// Returns `Ok(())` if the operation succeeds.
     pub async fn nuke_stream(&self, name: String) -> Result<()> {
         let command = NukeStreamCommand::new(name);
-        self.client.execute(command).await
+        self.client.execute(command).await?;
+
+        Ok(())
     }
 
     /// This request allows you to set a specific tag on a stream.
@@ -126,6 +128,9 @@ impl<'a> StreamController<'a> {
     /// can be used to automatically start pushes or triggers depending on the tag.
     /// Which allows you to set up different workflows for streams in the same wildcard group.
     /// For example only adding recording for "some" of the current live streams.
+    ///
+    /// # Returns
+    /// Error or nothing
     ///
     pub async fn tag(&self, stream: &str, tags: Vec<&str>) -> Result<()> {
         // TODO: Add a builder to add tags
@@ -135,7 +140,9 @@ impl<'a> StreamController<'a> {
         map.insert(stream.into(), tags);
 
         let command = TagStreamCommand::new(map);
-        self.client.execute(command).await
+        self.client.execute(command).await?;
+
+        Ok(())
     }
 
     /// This request allows you to set a specific tag on a stream.
@@ -144,6 +151,8 @@ impl<'a> StreamController<'a> {
     /// Which allows you to set up different workflows for streams in the same wildcard group.
     /// For example only adding recording for "some" of the current live streams.
     ///
+    /// # Returns
+    /// Error or nothing
     pub async fn untag(&self, stream: &str, tags: Vec<&str>) -> Result<()> {
         // TODO: Add a builder to add tags
         let tags = TagValue::from(tags);
@@ -152,6 +161,8 @@ impl<'a> StreamController<'a> {
         map.insert(stream.into(), tags);
 
         let command = UntagStreamCommand::new(map);
-        self.client.execute(command).await
+        self.client.execute(command).await?;
+
+        Ok(())
     }
 }

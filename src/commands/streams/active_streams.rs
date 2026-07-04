@@ -89,31 +89,31 @@ struct ActiveStreamStats {
 /// Detailed health information reported for an individual media track.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TrackInfo {
-    pub bframes: bool,
-    pub buffer: i32,
-    pub codec: String,
-    pub efpks: i32,
-    pub efps: i32,
-    pub fpks: i32,
-    pub fps: i32,
-    pub height: i32,
-    pub id: i32,
-    pub idx: i32,
-    pub jitter: i32,
-    pub kbits: i32,
-    pub keys: KeyInfo,
-    pub width: i32,
+    pub bframes: Option<bool>,
+    pub buffer: Option<i32>,
+    pub codec: Option<String>,
+    pub efpks: Option<i32>,
+    pub efps: Option<f32>,
+    pub fpks: Option<i32>,
+    pub fps: Option<i32>,
+    pub height: Option<i32>,
+    pub id: Option<i32>,
+    pub idx: Option<i32>,
+    pub jitter: Option<i32>,
+    pub kbits: Option<i32>,
+    pub keys: Option<KeyInfo>,
+    pub width: Option<i32>,
 }
 
 /// Keyframe timing and interval statistics for a media track.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct KeyInfo {
-    pub frame_ms_max: i32,
-    pub frame_ms_min: i32,
-    pub frames_max: i32,
-    pub frames_min: i32,
-    pub ms_max: i32,
-    pub ms_min: i32,
+    pub frame_ms_max: Option<i32>,
+    pub frame_ms_min: Option<i32>,
+    pub frames_max: Option<i32>,
+    pub frames_min: Option<i32>,
+    pub ms_max: Option<i32>,
+    pub ms_min: Option<i32>,
 }
 
 /// Health diagnostics for an active stream.
@@ -126,10 +126,10 @@ pub struct ActiveStreamHealth {
     pub buffer: Option<i32>,
     pub issues: Option<String>,
     pub jitter: Option<i32>,
-    pub tracks: Vec<String>,
+    pub tracks: Option<Vec<String>>,
 
     #[serde(flatten)]
-    pub tracks_detail: HashMap<String, TrackInfo>,
+    pub tracks_detail: Option<HashMap<String, TrackInfo>>,
 }
 
 #[cfg(test)]

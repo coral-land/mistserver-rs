@@ -113,7 +113,7 @@ impl TagStreamCommand {
 }
 
 impl MistCommand for TagStreamCommand {
-    type Response = ();
+    type Response = Option<serde_json::Value>;
 
     const NAME: &'static str = "tag_stream";
 }
@@ -144,7 +144,7 @@ impl UntagStreamCommand {
 }
 
 impl MistCommand for UntagStreamCommand {
-    type Response = ();
+    type Response = Option<serde_json::Value>;
 
     const NAME: &'static str = "untag_stream";
 }
