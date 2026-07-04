@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-pub enum ProtocolOnlineValue {
+pub enum ProtocolStatus {
     String(String),
     Number(i8),
 }
@@ -35,5 +35,5 @@ pub enum ProtocolConnector {
 #[derive(Serialize, Deserialize)]
 pub struct Protocol {
     connector: ProtocolConnector,
-    online: ProtocolOnlineValue,
+    online: ProtocolStatus,
 }

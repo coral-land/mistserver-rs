@@ -3,7 +3,7 @@
 //! This example demonstrates the recommended workflow for interacting with a
 //! MistServer instance using the `mistserver-rs` SDK.
 //!
-//! The example performs the following steps:
+//! It performs the following steps:
 //!
 //! 1. Creates a reusable HTTP client.
 //! 2. Builds a `MistClient`.
@@ -11,195 +11,149 @@
 //! 4. Creates a single stream.
 //! 5. Creates multiple streams in a single request.
 //! 6. Lists all available streams.
-//! 7. Cleans up by deleting the streams created during the example.
+//! 7. Cleans up **only** the streams created during this example.
 //!
 //! This example is intended to demonstrate the typical lifecycle of a
 //! long-running application where a single `MistClient` instance is reused
 //! for multiple API requests.
-//!
-//! Expected output (simplified):
-//!
-//! INFO Successfully authenticated
-//! INFO Created stream "stream_some"
-//! INFO Created 3 streams
-//! INFO Retrieved 4 streams
-//! INFO Deleted 2 streams
-//! INFO Example completed successfully
 
+use anyhow::{Context, Result};
 use mistserver_rs::{MistClient, MistClientBuilder, StreamBuilder};
 use reqwest::Client;
 use std::{collections::HashMap, time::Duration};
 use tokio::time::sleep;
-use tracing::{error, info, warn};
+use tracing::{Level, info, warn};
+
+// ---------------------------------------------------------------------
+// Configuration constants
+// ---------------------------------------------------------------------
+const MIST_ENDPOINT: &str = "http://localhost:4242/api2";
+const MIST_USERNAME: &str = "admin";
+const MIST_PASSWORD: &str = "password";
+
+const STREAM_SOURCE_1: &str = "/video/file.mp4";
+const STREAM_SOURCE_2: &str = "/video/other.mp4";
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    // ---------------------------------------------------------------------
+async fn main() -> Result<()> {
+    // -----------------------------------------------------------------
     // Initialize logging
-    // ---------------------------------------------------------------------
-    //
-    // The example uses `tracing` for structured logging. Any logger
-    // compatible with the `tracing` ecosystem may be used.
-    //
+    // -----------------------------------------------------------------
     tracing_subscriber::fmt()
+        .with_max_level(Level::DEBUG)
         .compact()
-        .with_line_number(true)
-        .with_thread_ids(true)
+        .with_line_number(false)
+        .with_thread_ids(false)
         .with_target(false)
         .with_level(true)
         .init();
 
     info!("Starting MistServer SDK example");
 
-    // ---------------------------------------------------------------------
+    // -----------------------------------------------------------------
     // Build a reusable HTTP client
-    // ---------------------------------------------------------------------
-    //
-    // Reusing a single reqwest client enables:
-    //
-    // - HTTP connection pooling
-    // - Keep-alive support
-    // - Shared timeout configuration
-    //
-    let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
+    // -----------------------------------------------------------------
+    let client = Client::builder()
+        .timeout(Duration::from_secs(30))
+        .build()
+        .context("Failed to create HTTP client")?;
 
-    // ---------------------------------------------------------------------
+    // -----------------------------------------------------------------
     // Create the Mist client
-    // ---------------------------------------------------------------------
-    //
-    // MistClientBuilder configures:
-    //
-    // - API endpoint
-    // - Authentication credentials
-    // - Custom HTTP client
-    //
-    // The resulting client should generally be reused throughout the
-    // lifetime of your application.
-    //
-    let mut mist_client = MistClientBuilder::new("http://localhost:4242/api")
+    // -----------------------------------------------------------------
+    let mut mist_client = MistClientBuilder::new(MIST_ENDPOINT)
         .with_client(client)
-        .with_auth("admin", "password")
+        .with_auth(MIST_USERNAME, MIST_PASSWORD)
         .build();
 
-    // ---------------------------------------------------------------------
-    // Authentication
-    // ---------------------------------------------------------------------
-    //
-    // Authenticate once before issuing API requests.
-    //
-    // On success, the SDK stores the session internally and automatically
-    // reuses it for subsequent requests.
-    //
+    // -----------------------------------------------------------------
+    // Authenticate once
+    // -----------------------------------------------------------------
     mist_client
         .auth()
         .authorize()
         .await
-        .map_err(|e| anyhow::anyhow!("Authentication failed: {e}"))?;
+        .context("Authentication with MistServer failed")?;
 
     info!("Successfully authenticated with MistServer");
 
-    // ---------------------------------------------------------------------
-    // Create streams
-    // ---------------------------------------------------------------------
+    // -----------------------------------------------------------------
+    // Create streams and collect their names for later cleanup
+    // -----------------------------------------------------------------
+    let mut created_streams = Vec::new();
 
-    add_single_stream(&mut mist_client).await?;
-    add_multiple_streams(&mut mist_client).await?;
+    let single_name = add_single_stream(&mut mist_client).await?;
+    created_streams.push(single_name);
 
-    // ---------------------------------------------------------------------
-    // List streams
-    // ---------------------------------------------------------------------
-    //
-    // Retrieve all currently configured streams.
-    //
+    let multiple_names = add_multiple_streams(&mut mist_client).await?;
+    created_streams.extend(multiple_names);
+
+    // -----------------------------------------------------------------
+    // List active streams (optional)
+    // -----------------------------------------------------------------
+    let active = mist_client.streams().list_active().await?;
+    info!(active_streams = ?active, "Active streams after creation");
+
+    // -----------------------------------------------------------------
+    // List all streams
+    // -----------------------------------------------------------------
     let list_response = mist_client.streams().list().await?;
-
     info!(
         total_streams = list_response.streams.len(),
         streams = ?list_response.streams,
-        "Retrieved stream list"
+        "Retrieved full stream list"
     );
 
-    // ---------------------------------------------------------------------
-    // Wait for demonstration purposes
-    // ---------------------------------------------------------------------
-    //
-    // Give MistServer a few seconds to initialize newly created streams.
-    // This delay is only included for demonstration and is generally not
-    // required in production applications.
-    //
-    info!("Waiting for streams to initialize...");
+    // -----------------------------------------------------------------
+    // Wait for demonstration purposes (not required in production)
+    // -----------------------------------------------------------------
+    info!("Waiting 5 seconds for streams to initialise (demo only)…");
     sleep(Duration::from_secs(5)).await;
 
-    // ---------------------------------------------------------------------
-    // Cleanup
-    // ---------------------------------------------------------------------
-    //
-    // Remove only the streams created by this example.
-    //
-    cleanup_streams(&mut mist_client).await?;
+    // -----------------------------------------------------------------
+    // Cleanup – delete only the streams we created
+    // -----------------------------------------------------------------
+    cleanup_streams(&mut mist_client, &created_streams).await?;
 
     info!("Example completed successfully");
-
     Ok(())
 }
 
-/// Creates a single stream.
-///
-/// Demonstrates the simplest way to register a new stream using the builder
-/// pattern.
-async fn add_single_stream(mist_client: &mut MistClient) -> anyhow::Result<()> {
-    info!("Creating stream 'stream_some'");
+/// Creates a single stream and returns its name.
+async fn add_single_stream(mist_client: &mut MistClient) -> Result<String> {
+    let name = "stream_some";
+    info!(stream = name, "Creating single stream");
 
-    // StreamBuilder uses the builder pattern so optional configuration can
-    // be specified fluently.
-    //
-    // name:
-    //     Unique identifier of the stream.
-    //
-    // source:
-    //     Media source to ingest.
-    //
-    // always_on:
-    //     Keep the stream active continuously.
-    //
-    // debug:
-    //     Enable MistServer debug logging for this stream.
-    //
-    let stream = StreamBuilder::new("stream_some", "/video/file.mp4")
+    let stream = StreamBuilder::new(name, STREAM_SOURCE_1)
         .always_on(true)
         .debug(10)
         .build()
-        .map_err(|e| anyhow::anyhow!("Failed to build stream configuration: {e}"))?;
+        .context("Failed to build stream configuration")?;
 
     mist_client
         .streams()
         .add(stream)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to create stream: {e}"))?;
+        .context("Failed to create stream")?;
 
-    info!("Successfully created stream 'stream_some'");
-
-    Ok(())
+    info!(stream = name, "Successfully created stream");
+    Ok(name.to_string())
 }
 
-/// Creates multiple streams.
-///
-/// Batch creation is typically more efficient than issuing several individual
-/// API requests.
-async fn add_multiple_streams(mist_client: &mut MistClient) -> anyhow::Result<()> {
+/// Creates multiple streams in a single batch request and returns their names.
+async fn add_multiple_streams(mist_client: &mut MistClient) -> Result<Vec<String>> {
     info!("Preparing multiple stream configurations");
 
-    let stream_configs = vec![
-        ("stream1", "/video/file.mp4"),
-        ("stream2", "/video/file.mp4"),
-        ("stream3", "/video/other.mp4"),
+    let configs = vec![
+        ("stream1", STREAM_SOURCE_1),
+        ("stream2", STREAM_SOURCE_1),
+        ("stream3", STREAM_SOURCE_2),
     ];
 
-    // add_many() expects a mapping between stream names and stream
-    // configurations.
-    let mut streams = HashMap::with_capacity(stream_configs.len());
+    let mut streams = HashMap::with_capacity(configs.len());
+    let mut names = Vec::with_capacity(configs.len());
 
-    for (name, source) in stream_configs {
+    for (name, source) in configs {
         match StreamBuilder::new(name, source)
             .always_on(true)
             .debug(5)
@@ -208,6 +162,7 @@ async fn add_multiple_streams(mist_client: &mut MistClient) -> anyhow::Result<()
             Ok(stream) => {
                 info!(stream = name, "Prepared stream configuration");
                 streams.insert(name.to_string(), stream);
+                names.push(name.to_string());
             }
             Err(e) => {
                 warn!(
@@ -232,40 +187,27 @@ async fn add_multiple_streams(mist_client: &mut MistClient) -> anyhow::Result<()
         .streams()
         .add_many(streams)
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to create streams: {e}"))?;
+        .context("Batch creation failed")?;
 
-    info!("Successfully created multiple streams");
-
-    Ok(())
+    info!("Successfully created {} streams", names.len());
+    Ok(names)
 }
 
-/// Deletes the streams created during this example.
-///
-/// Production applications typically delete streams only when they are no
-/// longer needed.
-async fn cleanup_streams(mist_client: &mut MistClient) -> anyhow::Result<()> {
-    let streams_to_delete = vec![
-        "stream_some".to_string(),
-        "stream1".to_string(),
-        "stream2".to_string(),
-        "stream3".to_string(),
-    ];
+/// Deletes the streams whose names are given.
+async fn cleanup_streams(mist_client: &mut MistClient, names: &[String]) -> Result<()> {
+    if names.is_empty() {
+        info!("No streams to clean up");
+        return Ok(());
+    }
 
-    info!(
-        streams = ?streams_to_delete,
-        "Cleaning up example streams"
-    );
+    info!(streams = ?names, "Cleaning up example streams");
 
     mist_client
         .streams()
-        .delete(streams_to_delete)
+        .delete(names.to_vec())
         .await
-        .map_err(|e| anyhow::anyhow!("Failed to delete streams: {e}"))?;
+        .context("Failed to delete streams")?;
 
-    info!("Cleanup completed");
-
-    // The client remains fully usable after cleanup. Additional API requests
-    // can be issued until the client is dropped.
-
+    info!("Cleanup completed for {} streams", names.len());
     Ok(())
 }

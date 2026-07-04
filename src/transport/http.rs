@@ -7,6 +7,7 @@
 
 use crate::{MistError, Result, commands::traits::MistCommand};
 use reqwest::Client;
+use tracing::debug;
 use url::Url;
 
 /// Low‑level API client for the Mist server.
@@ -32,8 +33,7 @@ impl HttpTransport {
 
     /// Sends a command to the Mist API and deserializes the response.
     ///
-    /// The command is serialized to JSON and appended as a `command` query
-    /// parameter to the base URL. The request is performed as an HTTP GET.
+    /// The command is serialized to JSON and appended as a `command` query parameter to the base URL. The request is performed as an HTTP GET.
     ///
     /// # Type parameters
     /// * `T` - The expected response type, must be deserializable from JSON.
@@ -53,6 +53,9 @@ impl HttpTransport {
 
         let response = self.client.get(request_url).send().await?;
         let response_text = response.text().await?;
+
+        debug!(response_text= %response_text, "Api request response");
+
         let json_value: serde_json::Value = serde_json::from_str(&response_text)?;
         let to_string = serde_json::to_string_pretty(&json_value)?;
         if let Some(error_msg) = json_value["error"].as_str() {
@@ -131,6 +134,7 @@ impl Default for HttpTransportBuilder {
         Self::new()
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

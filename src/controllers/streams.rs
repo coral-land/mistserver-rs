@@ -3,11 +3,11 @@
 //! This module provides functionality to manage streams, including creating
 //! and deleting streams via the Mist API. It defines the command structures
 //! and the controller that interacts with the API.
-
 use crate::{
     MistClient, Result,
     commands::streams::{
-        DeleteStreamCommand, StreamAddCommand, StreamCommandsResponse, StreamListCommand,
+        AddStreamCommand, DeleteStreamCommand, ListActiveStreamsCommand, ListActiveStreamsResponse,
+        NukeStreamCommand, StreamCommandsResponse, StreamListCommand,
     },
     models::Stream,
 };
@@ -33,7 +33,7 @@ impl<'a> StreamController<'a> {
     /// # Returns
     /// A `Result` containing the `StreamAddResponse` with details of the created streams.
     pub async fn add(&self, stream: Stream) -> Result<StreamCommandsResponse> {
-        let command = StreamAddCommand::from(stream);
+        let command = AddStreamCommand::from(stream);
         self.client.execute(command).await
     }
 
@@ -46,7 +46,7 @@ impl<'a> StreamController<'a> {
         &self,
         streams: HashMap<String, Stream>,
     ) -> Result<StreamCommandsResponse> {
-        let command = StreamAddCommand::from(streams);
+        let command = AddStreamCommand::from(streams);
         self.client.execute(command).await
     }
 
@@ -56,7 +56,18 @@ impl<'a> StreamController<'a> {
     /// # Returns
     /// - A `StreamCommandsResponse` containing the streams HashMap.
     pub async fn list(&self) -> Result<StreamCommandsResponse> {
-        let command = StreamListCommand {};
+        let command = StreamListCommand { streams: () };
+        self.client.execute(command).await
+    }
+
+    /// List Active Streams with metrics
+    /// This requests a list of streams that are currently active, and only those.
+    /// The list includes any wildcard versions of streams as well as temporary streams that may be active.
+    ///
+    /// # Returns
+    /// A response containing the active streams with it's stats
+    pub async fn list_active(&self) -> Result<ListActiveStreamsResponse> {
+        let command = ListActiveStreamsCommand::new();
         self.client.execute(command).await
     }
 
@@ -70,5 +81,17 @@ impl<'a> StreamController<'a> {
         let result = self.client.execute(command).await?;
 
         Ok(())
+    }
+
+    /// This call can shut down a running stream completely and/or clean up any potentially
+    /// left over stream data in memory. It attempts a clean shutdown of the running stream first,
+    /// followed by a forced shut down, and then follows up by checking for left over data in memory
+    /// and cleaning that up if any is found.
+    ///
+    /// # Returns
+    /// There is no response for this method
+    pub async fn nuke_stream(&self, name: String) -> Result<()> {
+        let command = NukeStreamCommand::new(name);
+        self.client.execute(command).await
     }
 }

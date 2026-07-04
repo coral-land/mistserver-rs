@@ -3,89 +3,82 @@ use crate::{
     commands::{traits::MistCommand, utils::deserialize_streams_map},
     models::Stream,
 };
+
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_tuple::Deserialize_tuple;
 use std::collections::HashMap;
 
-/// Command payload for adding one or more streams.
+/// Payload for the `addstream` command.
 ///
-/// This struct is serialized into JSON and sent as the `addstream` command
-/// to the Mist API. The keys are stream names and the values are stream
-/// configurations.
+/// Sent to the Mist API to create or update one or more streams. The map keys are stream names,
+/// and the values are their full [`Stream`] configurations. The serialized JSON places everything
+/// under an `"addstream"` object.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StreamAddCommand {
+pub struct AddStreamCommand {
     pub addstream: HashMap<String, Stream>,
 }
 
-impl StreamAddCommand {
-    /// Creates a new `StreamAddCommand` with the given stream configurations.
-    ///
-    /// # Arguments
-    /// * `streams` - A map from stream names to their `Stream` configurations.
+impl AddStreamCommand {
+    /// Creates a new command with the given stream map.
     pub fn new(streams: HashMap<String, Stream>) -> Self {
         Self { addstream: streams }
     }
 }
 
-impl From<HashMap<String, Stream>> for StreamAddCommand {
+impl From<HashMap<String, Stream>> for AddStreamCommand {
     fn from(value: HashMap<String, Stream>) -> Self {
         Self::new(value)
     }
 }
 
-impl From<Stream> for StreamAddCommand {
+impl From<Stream> for AddStreamCommand {
     fn from(value: Stream) -> Self {
         let mut hashmap = HashMap::new();
         hashmap.insert(value.name.clone(), value);
-
         Self::new(hashmap)
     }
 }
 
-/// Implementation of MistCommand
-impl MistCommand for StreamAddCommand {
+impl MistCommand for AddStreamCommand {
     type Response = StreamCommandsResponse;
     const NAME: &'static str = "addstream";
 }
 
-/// Just an empty {} is enough to be sent into the
-/// stream and it will return a big json that contains streams
+/// Command to retrieve the list of all configured streams.
+///
+/// Sending an empty object (`{}`) to the `liststream` endpoint returns a full map of stream
+/// names to their details. The response is captured by [`StreamCommandsResponse`].
 #[derive(Serialize, Debug, Clone)]
-pub struct StreamListCommand {}
+pub struct StreamListCommand {
+    pub streams: (),
+}
 
 impl MistCommand for StreamListCommand {
     type Response = StreamCommandsResponse;
     const NAME: &'static str = "liststream";
 }
 
-/// Response received after successfully adding streams.
+/// Response returned by stream‑listing or stream‑addition commands.
 ///
-/// Contains a map of stream names to their detailed information as returned
-/// by the API.
+/// The Mist API wraps the stream information inside a `"streams"` key. This struct deserializes
+/// that map, using a custom deserializer to handle the various possible field types.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StreamCommandsResponse {
-    /// Map of stream names to their `StreamInfo` details.
     #[serde(deserialize_with = "deserialize_streams_map")]
     pub streams: HashMap<String, StreamInfo>,
 }
 
-/// Command for deleting one or more streams.
+/// Command to delete one or more streams by name.
 ///
-/// The Mist API accepts multiple formats for deletion:
-/// - A single stream name as a string.
-/// - An array of stream names.
-/// - A more complex object (hash map) for advanced deletion criteria.
+/// The Mist API accepts the stream names as a JSON array under the `"deletestream"` field.
+/// This command supports deleting multiple streams in a single request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeleteStreamCommand {
-    // Stream name list
     pub deletestream: Vec<String>,
 }
 
 impl DeleteStreamCommand {
-    /// Creates a new `DeleteStreamCommand` with the given stream names.
-    ///
-    /// # Arguments
-    /// * `names` - A vector of stream names to be deleted.
+    /// Creates a new deletion command for the given stream names.
     pub fn new(names: Vec<String>) -> Self {
         Self {
             deletestream: names,
@@ -94,11 +87,222 @@ impl DeleteStreamCommand {
 }
 
 impl MistCommand for DeleteStreamCommand {
-    /// There is no valid response from mist server for this command
-    /// It returns whole cluster information witch we do not need.
-    /// So we make it optional to avoid problems in desrialization.
-    type Response = Option<Value>;
+    /// The Mist server sometimes returns no useful response; this type is kept as `Option`
+    /// to gracefully handle missing or unexpected replies.
+    type Response = Option<DeleteStreamResponse>;
     const NAME: &'static str = "deletestream";
+}
+
+/// Response payload for a stream deletion request.
+///
+/// Contains the updated stream information after deletion, wrapped in a `"streams"` map.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteStreamResponse {
+    #[serde(deserialize_with = "deserialize_streams_map")]
+    streams: HashMap<String, StreamInfo>,
+}
+
+/// Command to delete the source files of one or more streams.
+///
+/// This action removes the source files associated with the named streams, without affecting
+/// other streams. The command accepts a list of stream names under the `"deletestreamsource"` key.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteStreamSourceCommand {
+    deletestreamsource: Vec<String>,
+}
+
+impl DeleteStreamSourceCommand {
+    /// Creates a new command with the given list of stream names.
+    pub fn new(names: Vec<String>) -> Self {
+        Self {
+            deletestreamsource: names,
+        }
+    }
+}
+
+impl MistCommand for DeleteStreamSourceCommand {
+    type Response = StreamCommandsResponse;
+    const NAME: &'static str = "deletestreamsource";
+}
+
+/// Status of a delete‑source operation for a single stream.
+///
+/// The Mist API returns a string like `"0 No action"` or `"1 Source deleted"`.
+/// This enum parses that string into a structured representation.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DeleteStreamSourceStatus {
+    /// No action was taken (e.g., stream did not exist).
+    NoAction,
+    /// The source file was successfully deleted.
+    SourceDeleted,
+    /// Both the source file and its DTSH index were deleted.
+    SourceAndDtshDeleted,
+    /// An unknown status code was received.
+    Unknown(i32, String),
+}
+
+impl<'de> Deserialize<'de> for DeleteStreamSourceStatus {
+    fn deserialize<D>(deserializer: D) -> std::prelude::v1::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if let Some((code_str, msg)) = s.split_once(' ')
+            && let Ok(code) = code_str.parse::<i32>()
+        {
+            return Ok(match code {
+                0 => DeleteStreamSourceStatus::NoAction,
+                1 => DeleteStreamSourceStatus::SourceDeleted,
+                2 => DeleteStreamSourceStatus::SourceAndDtshDeleted,
+                _ => DeleteStreamSourceStatus::Unknown(code, msg.to_string()),
+            });
+        }
+        Ok(DeleteStreamSourceStatus::Unknown(0, s))
+    }
+}
+
+/// Response from a `deletestreamsource` command.
+///
+/// The Mist API may return a single status, an array of statuses, or a map of stream names to
+/// statuses. This enum covers all three forms.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum DeleteStreamSourceReponse {
+    /// A single status (when only one stream was requested).
+    Single(DeleteStreamSourceStatus),
+    /// An array of statuses, in the same order as the requested stream names.
+    Array(Vec<DeleteStreamSourceStatus>),
+    /// A map from stream name to its individual status.
+    Object(HashMap<String, DeleteStreamSourceStatus>),
+}
+
+/// Command to completely remove a stream and all its associated data.
+///
+/// This is a destructive operation that nukes the stream entirely. It expects a single
+/// stream name under the `"nuke_stream"` key.
+#[derive(Debug, Clone, Serialize)]
+pub struct NukeStreamCommand {
+    nuke_stream: String,
+}
+
+impl NukeStreamCommand {
+    /// Creates a new nuke command for the given stream name.
+    pub fn new(name: String) -> Self {
+        Self { nuke_stream: name }
+    }
+}
+
+impl MistCommand for NukeStreamCommand {
+    type Response = ();
+    const NAME: &'static str = "nuke_stream";
+}
+
+/// Command to retrieve real‑time statistics for all active streams.
+///
+/// The `"active_streams"` endpoint returns a wealth of metrics for each currently active stream.
+/// This command includes a fixed list of requested fields; the response is captured in
+/// [`ListActiveStreamsResponse`].
+#[derive(Debug, Clone, Serialize)]
+pub struct ListActiveStreamsCommand {
+    active_streams: Vec<&'static str>,
+}
+
+impl ListActiveStreamsCommand {
+    /// Creates a new command with the default set of statistical fields.
+    pub fn new() -> Self {
+        Self {
+            active_streams: vec![
+                "clients",
+                "lastms",
+                "firstms",
+                "viewers",
+                "inputs",
+                "outputs",
+                "views",
+                "viewseconds",
+                "upbytes",
+                "downbytes",
+                "packsent",
+                "packloss",
+                "packretrans",
+                "status",
+                "health",
+            ],
+        }
+    }
+}
+
+impl MistCommand for ListActiveStreamsCommand {
+    type Response = ListActiveStreamsResponse;
+    const NAME: &'static str = "active_streams";
+}
+
+/// Response for the `active_streams` command.
+///
+/// Contains an optional map from stream names to their detailed statistical information.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListActiveStreamsResponse {
+    active_streams: Option<HashMap<String, ActiveStreamStats>>,
+}
+
+/// Statistical information for a single active stream.
+///
+/// These fields correspond to the metrics requested by [`ListActiveStreamsCommand`].
+#[derive(Debug, Clone, Deserialize_tuple)]
+struct ActiveStreamStats {
+    clients: Option<i32>,
+    lastms: Option<i32>,
+    firstms: Option<i32>,
+    viewers: Option<i32>,
+    inputs: Option<i32>,
+    outputs: Option<i32>,
+    views: Option<i32>,
+    viewseconds: Option<i32>,
+    upbytes: Option<i32>,
+    downbytes: Option<i32>,
+    packsent: Option<i32>,
+    packloss: Option<i32>,
+    packretrans: Option<i32>,
+    status: Option<String>,
+    health: Option<ActiveStreamHealth>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TrackInfo {
+    pub bframes: bool,
+    pub buffer: i32,
+    pub codec: String,
+    pub efpks: i32,
+    pub efps: i32,
+    pub fpks: i32,
+    pub fps: i32,
+    pub height: i32,
+    pub id: i32,
+    pub idx: i32,
+    pub jitter: i32,
+    pub kbits: i32,
+    pub keys: KeyInfo,
+    pub width: i32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct KeyInfo {
+    pub frame_ms_max: i32,
+    pub frame_ms_min: i32,
+    pub frames_max: i32,
+    pub frames_min: i32,
+    pub ms_max: i32,
+    pub ms_min: i32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ActiveStreamHealth {
+    pub buffer: i32,
+    pub issues: String,
+    pub jitter: i32,
+    pub tracks: Vec<String>,
+    #[serde(flatten)]
+    pub tracks_detail: HashMap<String, TrackInfo>,
 }
 
 #[cfg(test)]
@@ -120,7 +324,7 @@ mod tests {
         let mut streams = HashMap::new();
         streams.insert("camera1".to_string(), sample_stream());
 
-        let command = StreamAddCommand::new(streams.clone());
+        let command = AddStreamCommand::new(streams.clone());
 
         assert_eq!(command.addstream.len(), 1);
     }
@@ -130,7 +334,7 @@ mod tests {
         let mut streams = HashMap::new();
         streams.insert("camera1".to_string(), sample_stream());
 
-        let command = StreamAddCommand::new(streams);
+        let command = AddStreamCommand::new(streams);
 
         let value = serde_json::to_value(command).unwrap();
 
@@ -140,7 +344,7 @@ mod tests {
 
     #[test]
     fn stream_add_command_name() {
-        assert_eq!(StreamAddCommand::NAME, "addstream");
+        assert_eq!(AddStreamCommand::NAME, "addstream");
     }
 
     #[test]
