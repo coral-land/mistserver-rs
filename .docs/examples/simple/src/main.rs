@@ -21,6 +21,7 @@ use tokio::time::sleep;
 use tracing::{Level, info, warn};
 
 const MIST_ENDPOINT: &str = "http://localhost:4242/api2";
+
 const MIST_USERNAME: &str = "admin";
 const MIST_PASSWORD: &str = "password";
 

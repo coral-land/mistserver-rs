@@ -1,15 +1,17 @@
 mod active_streams;
-mod addstream;
-mod deletestream;
-mod liststream;
+mod adds_tream;
+mod delete_stream;
+mod list_stream;
 mod nuke_stream;
+mod stream_tags;
 mod tag_stream;
 
 pub use active_streams::*;
-pub use addstream::*;
-pub use deletestream::*;
-pub use liststream::*;
+pub use adds_tream::*;
+pub use delete_stream::*;
+pub use list_stream::*;
 pub use nuke_stream::*;
+pub use stream_tags::*;
 pub use tag_stream::*;
 
 use crate::{StreamInfo, commands::shared::deserialize_streams_map};

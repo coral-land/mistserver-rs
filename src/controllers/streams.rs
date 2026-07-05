@@ -14,8 +14,8 @@ use crate::{
     MistClient, Result,
     commands::streams::{
         AddStreamCommand, DeleteStreamCommand, ListActiveStreamsCommand, ListActiveStreamsResponse,
-        NukeStreamCommand, StreamCommandsResponse, StreamListCommand, TagStreamCommand, TagValue,
-        UntagStreamCommand,
+        NukeStreamCommand, StreamCommandsResponse, StreamListCommand, StreamTagsCommand,
+        StreamTagsCommandResponse, TagStreamCommand, TagValue, UntagStreamCommand,
     },
     models::Stream,
 };
@@ -123,7 +123,21 @@ impl<'a> StreamController<'a> {
         Ok(())
     }
 
-    /// This request allows you to set a specific tag on a stream.
+    /// This request allows you to look up all tags on a stream. They are not in any way
+    /// related to session tags. A stream tag can be used to automatically start pushes or
+    /// triggers depending on the tag. Which allows you to set up different workflows for
+    /// streams in the same wildcard group. For example only adding recording for "some"
+    /// of the current live streams.
+    ///
+    /// # Returns
+    /// If there is any error, you'll get `MistError` and if not you will get `StreamTagsCommandResponse`
+    /// containing the tags if there is any.
+    pub async fn tags(&self, names: Vec<String>) -> Result<StreamTagsCommandResponse> {
+        let command = StreamTagsCommand::new(names);
+        self.client.execute(command).await
+    }
+
+    /// This method allows you to set a specific tag on a stream.
     /// They are not in any way related to session tags. A stream tag
     /// can be used to automatically start pushes or triggers depending on the tag.
     /// Which allows you to set up different workflows for streams in the same wildcard group.
@@ -145,7 +159,7 @@ impl<'a> StreamController<'a> {
         Ok(())
     }
 
-    /// This request allows you to set a specific tag on a stream.
+    /// This method allows you to set a specific tag on a stream.
     /// They are not in any way related to session tags. A stream tag
     /// can be used to automatically start pushes or triggers depending on the tag.
     /// Which allows you to set up different workflows for streams in the same wildcard group.
