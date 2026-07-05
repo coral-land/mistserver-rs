@@ -35,7 +35,6 @@ mod tests {
     #[test]
     fn nuke_stream_command_new() {
         let command = NukeStreamCommand::new("camera1".to_string());
-
         let value = serde_json::to_value(&command).unwrap();
 
         assert_eq!(value["nuke_stream"], "camera1");
@@ -44,7 +43,6 @@ mod tests {
     #[test]
     fn nuke_stream_command_serialization() {
         let command = NukeStreamCommand::new("stream-a".to_string());
-
         let expected = json!({
             "nuke_stream": "stream-a"
         });

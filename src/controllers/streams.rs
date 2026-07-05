@@ -103,6 +103,7 @@ impl<'a> StreamController<'a> {
     pub async fn delete(&self, names: Vec<String>) -> Result<()> {
         let command = DeleteStreamCommand::new(names);
         self.client.execute(command).await?;
+
         Ok(())
     }
 
