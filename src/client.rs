@@ -80,7 +80,7 @@ impl MistClient {
 
     /// Executes the command every command will use this
     pub(crate) async fn execute<C: MistCommand>(&self, command: C) -> Result<C::Response> {
-        tracing::info!(command = C::NAME, "Executing Mist API command");
+        tracing::debug!(command = C::NAME, "Executing Mist API command");
         self.transport.execute(command).await
     }
 }

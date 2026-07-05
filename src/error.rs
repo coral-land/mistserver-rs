@@ -20,31 +20,15 @@ pub enum MistError {
     #[error("URL parse error: {0}")]
     InvalidUrl(#[from] url::ParseError),
 
-    #[error(
-        "invalid stream name '{0}': only letters, numbers, underscores ('_'), and hyphens ('-') are allowed"
-    )]
-    InvalidStreamName(String),
+    #[error("invalid {target} name: '{name}': {error}")]
+    Validation {
+        target: String,
+        name: String,
+        error: String,
+    },
 
     #[error("Timeout waiting for response")]
     Timeout,
-
-    #[error("Stream Name Too Long, current: {0}, acceptable: <= 100 characters")]
-    StreamNameTooLong(usize),
-
-    #[error("Stream Invalid source: {0}")]
-    InvalidSource(String),
-
-    #[error("Invalid Push Url: {0}")]
-    InvalidPushUrl(String),
-
-    #[error("Invalid Host: {0}")]
-    InvalidHost(String),
-
-    #[error("Invalid Port: {0}")]
-    InvalidPort(u16),
-
-    #[error("Invalid Configuration: {0}")]
-    InvalidConfiguration(String),
 }
 
 pub trait ErrorContext<T> {

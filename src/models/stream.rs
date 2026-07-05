@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::debug;
 
 use crate::{MistError, Result};
 
@@ -54,8 +55,6 @@ pub struct Stream {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     pub extra: Option<HashMap<String, serde_json::Value>>,
 }
-
-impl Stream {}
 
 /// Detailed information about a stream, returned by the server in responses
 /// (e.g. after `addstream` or when listing streams).
@@ -144,22 +143,39 @@ impl StreamBuilder {
         self
     }
 
-    fn validate_stream_name(&self, name: &str) -> Result<()> {
-        if !name
+    pub(crate) fn validate(stream: &Stream) -> Result<()> {
+        debug!(stream = %stream.name, "Validating stream");
+
+        if stream.name.len() > 100 {
+            return Err(MistError::Validation {
+                target: "stream".into(),
+                name: stream.name.clone(),
+                error: "Stream name can not be more than 100 char".into(),
+            });
+        }
+
+        if !stream
+            .name
+            .clone()
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
         {
-            return Err(MistError::InvalidStreamName(name.into()));
+            return Err(MistError::Validation {
+                target: "stream".into(),
+                name: stream.name.clone(),
+                error:
+                    "only lower case letters a-z, numbers, underscores _, dashes - and periods ."
+                        .into(),
+            });
         }
 
+        debug!(stream = %stream.name, "Stream is valid and ready to be created");
         Ok(())
     }
 
     /// Build the final `Stream` object.
     pub fn build(self) -> Result<Stream> {
-        self.validate_stream_name(&self.name)?;
-
-        Ok(Stream {
+        let stream = Stream {
             name: self.name,
             source: self.source,
             always_on: self.always_on,
@@ -167,7 +183,10 @@ impl StreamBuilder {
             debug: self.debug,
             fallback_stream: self.fallback_stream,
             extra: self.extra,
-        })
+        };
+
+        Self::validate(&stream)?;
+        Ok(stream)
     }
 }
 
