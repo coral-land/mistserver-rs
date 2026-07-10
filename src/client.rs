@@ -21,7 +21,7 @@ use std::sync::Arc;
 use crate::{
     Result,
     commands::traits::MistCommand,
-    controllers::{AuthController, AuthResult, StreamController},
+    controllers::{AuthController, AuthResult, ProtocolsController, StreamController},
     transport::{HttpTransport, HttpTransportBuilder},
 };
 use reqwest::Client;
@@ -60,12 +60,18 @@ impl MistClient {
     ///
     /// # Example
     /// ```
-    /// # let client = MistClientBuilder::new("http://localhost:4242").build();
-    /// let streams = client.streams().await;
-    /// // streams.create(...).await?;
+    /// let client = MistClientBuilder::new("http://localhost:4242").build();
+    /// client.streams().add(...).await?;
     /// ```
+    ///
     pub fn streams(&self) -> StreamController<'_> {
         StreamController::new(self)
+    }
+
+    /// Returns a 'ProtocolsController` for managing protocols.
+    /// Provides CRUD operations or any related ones.
+    pub fn protocols(&self) -> ProtocolsController<'_> {
+        ProtocolsController::new(self)
     }
 
     /// Returns `true` if authentication credentials have been set.

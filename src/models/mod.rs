@@ -1,7 +1,7 @@
 mod config;
-mod protocol;
+mod protocols;
 mod stream;
 
 pub use config::*;
-pub use protocol::*;
+pub use protocols::*;
 pub use stream::*;

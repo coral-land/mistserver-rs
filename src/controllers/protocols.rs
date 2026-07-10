@@ -1,15 +1,19 @@
-use crate::MistClient;
+use crate::{MistClient, Protocol};
 
 pub struct ProtocolsController<'a> {
     client: &'a MistClient,
 }
 
 impl<'a> ProtocolsController<'a> {
-    async fn new(client: &'a MistClient) -> Self {
+    pub fn new(client: &'a MistClient) -> Self {
         Self { client }
     }
 
     // TODO: Add
+    pub async fn add(&self, protocol: Protocol) {
+        todo!()
+    }
+
     // TODO: remove
     // TODO: List
     // TODO: Update
