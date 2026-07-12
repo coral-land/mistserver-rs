@@ -1,5 +1,5 @@
 mod active_streams;
-mod adds_tream;
+mod add_stream;
 mod delete_stream;
 mod list_stream;
 mod nuke_stream;
@@ -7,7 +7,7 @@ mod stream_tags;
 mod tag_stream;
 
 pub use active_streams::*;
-pub use adds_tream::*;
+pub use add_stream::*;
 pub use delete_stream::*;
 pub use list_stream::*;
 pub use nuke_stream::*;
