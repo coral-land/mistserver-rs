@@ -1,4 +1,4 @@
-use crate::{MistClient, Protocol};
+use crate::{MistClient, Protocol, Result, commands::protocols::AddProtocolCommmand};
 
 pub struct ProtocolsController<'a> {
     client: &'a MistClient,
@@ -9,9 +9,9 @@ impl<'a> ProtocolsController<'a> {
         Self { client }
     }
 
-    // TODO: Add
-    pub async fn add(&self, protocol: Protocol) {
-        todo!()
+    pub async fn add(&self, protocols: Vec<Protocol>) -> Result<()> {
+        let command = AddProtocolCommmand::new(protocols);
+        self.client.execute(command).await
     }
 
     // TODO: remove

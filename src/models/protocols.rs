@@ -1,9 +1,14 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Protocol {
+    /// The most important part. Actual type of protocol that is defined as
+    /// `connector`.
+    /// The type of this field is an enum called `ProtocolConnector`.
     pub connector: ProtocolConnector,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub online: Option<ProtocolStatus>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -22,11 +27,10 @@ pub struct Protocol {
     pub iceservers: Option<String>,
 
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
-    extra_fields: Option<HashMap<String, serde_json::Value>>,
+    pub extra_fields: Option<HashMap<String, serde_json::Value>>,
 }
 
-
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProtocolStatus {
     String(String),
     Number(i8),
@@ -58,4 +62,3 @@ pub enum ProtocolConnector {
     WAV,
     WebRTC,
 }
-
